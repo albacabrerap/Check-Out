@@ -80,20 +80,16 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- Source: https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-mail -->
+        <!-- Envio de correos (metas cumplidas, resumen mensual, alertas).
+             Sin <version>: la fija el BOM de spring-boot-starter-parent, igual
+             que el resto de artefactos de Spring. Fijarla a mano rompe la
+             alineacion que el BOM garantiza, y mas aun con una M1, que es de
+             preestreno y no encaja con el Boot 4.1.1 estable del proyecto.
+             spring-context-support no hace falta declararlo: lo arrastra este
+             starter, que es quien trae JavaMailSender. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
-            <version>4.2.0-M1</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <!-- Source: https://mvnrepository.com/artifact/org.springframework/spring-context-support -->
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-context-support</artifactId>
-            <version>7.1.0-M1</version>
-            <scope>compile</scope>
         </dependency>
 
         <!-- Plantillas HTML para los correos -->

@@ -1,8 +1,11 @@
 package com.checkout.backend.user.service;
 
 import com.checkout.backend.exceptions.DuplicateResourceException;
+import com.checkout.backend.investment_portfolio.service.PortfolioService;
+import com.checkout.backend.savings.service.SavingsService;
 import com.checkout.backend.security.JwtTokenProvider;
 import com.checkout.backend.token_wallet.refresh_token.service.RefreshTokenService;
+import com.checkout.backend.token_wallet.service.TokenWalletService;
 import com.checkout.backend.user.dto.AuthResponse;
 import com.checkout.backend.user.dto.LoginRequest;
 import com.checkout.backend.user.dto.RegisterUserRequest;
@@ -38,6 +41,9 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final TokenWalletService walletService;
+    private final SavingsService savingsService;
+    private final PortfolioService portfolioService;
     private final ModelMapper mapper;
 
     public AuthService(UserRepository userRepository,
@@ -45,12 +51,18 @@ public class AuthService {
                        AuthenticationManager authenticationManager,
                        JwtTokenProvider tokenProvider,
                        RefreshTokenService refreshTokenService,
+                       TokenWalletService walletService,
+                       SavingsService savingsService,
+                       PortfolioService portfolioService,
                        ModelMapper mapper) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
         this.refreshTokenService = refreshTokenService;
+        this.walletService = walletService;
+        this.savingsService = savingsService;
+        this.portfolioService = portfolioService;
         this.mapper = mapper;
     }
 
@@ -81,6 +93,21 @@ public class AuthService {
                 .roles(EnumSet.of(Role.USER))
                 .status(UserStatus.ACTIVE)
                 .build());
+
+        // Las tres cuentas 1:1 del usuario se crean aqui, en la misma transaccion
+        // que el usuario. Antes se creaban de forma diferida, en el primer acceso a
+        // cada modulo, y eso dejaba una carrera: dos peticiones simultaneas de un
+        // usuario nuevo podian ver las dos que su monedero no existia, y la que
+        // perdia recibia un 409 por el UNIQUE hablando de un conflicto que el
+        // usuario no habia provocado.
+        //
+        // Crearlas al registrar cierra esa ventana, y ademas hace que el estado de
+        // un usuario recien creado sea completo en vez de depender de por donde
+        // entre primero. Si falla cualquiera de las tres, no queda usuario a medias:
+        // es una sola transaccion.
+        walletService.getOrCreate(user);
+        savingsService.getOrCreate(user);
+        portfolioService.getOrCreate(user);
 
         return buildAuthResponse(user);
     }

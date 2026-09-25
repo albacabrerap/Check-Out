@@ -8,9 +8,12 @@ import com.checkout.backend.savings.income.model.Income;
 import com.checkout.backend.savings.income.repository.IncomeRepository;
 import com.checkout.backend.savings.service.SavingsService;
 import com.checkout.backend.user.model.User;
+import com.checkout.backend.web.PageResponse;
+import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,11 +70,12 @@ public class IncomeService {
      * cliente asumiria una cosa distinta.
      */
     @Transactional(readOnly = true)
-    public List<IncomeResponse> list(User user, LocalDate from, LocalDate to) {
-        List<Income> incomes;
+    public PageResponse<IncomeResponse> list(User user, LocalDate from, LocalDate to,
+                                             Pageable pageable) {
+        Page<Income> incomes;
 
         if (from == null && to == null) {
-            incomes = incomeRepository.findByUserIdOrderByDateDesc(user.getId());
+            incomes = incomeRepository.findByUserIdOrderByDateDesc(user.getId(), pageable);
         } else if (from == null || to == null) {
             throw new InvalidRequestException(
                     "Para filtrar por fecha hay que enviar 'from' y 'to', no solo uno.");
@@ -79,10 +83,10 @@ public class IncomeService {
             throw new InvalidRequestException("'from' no puede ser posterior a 'to'.");
         } else {
             incomes = incomeRepository.findByUserIdAndDateBetweenOrderByDateDesc(
-                    user.getId(), from, to);
+                    user.getId(), from, to, pageable);
         }
 
-        return incomes.stream().map(income -> mapper.map(income, IncomeResponse.class)).toList();
+        return PageResponse.of(incomes.map(income -> mapper.map(income, IncomeResponse.class)));
     }
 
     @Transactional(readOnly = true)
@@ -91,11 +95,45 @@ public class IncomeService {
     }
 
     /**
+     * Corrige un ingreso ya registrado.
+     *
+     * Existe porque sin el la unica forma de arreglar un importe mal escrito era
+     * borrar y volver a crear, y el borrado puede estar bloqueado si el dinero ya
+     * se comprometio en una meta. El usuario que escribia 5000 en vez de 500 se
+     * quedaba sin salida.
+     *
+     * El saldo se ajusta por la diferencia, no se deshace y se vuelve a aplicar:
+     * asi corregir 5000 a 5100 no exige tener 5000 libres en un instante
+     * intermedio. Cuando la correccion baja el importe se cobra la diferencia con
+     * debit, que valida contra el disponible, de modo que no se puede corregir a
+     * la baja un dinero que ya esta apartado en una meta.
+     */
+    @Transactional
+    public IncomeResponse update(User user, Long id, IncomeRequest request) {
+        Income income = findOwned(user, id);
+
+        BigDecimal difference = request.getAmount().subtract(income.getAmount());
+        if (difference.signum() > 0) {
+            savingsService.credit(user, difference);
+        } else if (difference.signum() < 0) {
+            savingsService.debit(user, difference.abs());
+        }
+
+        income.setAmount(request.getAmount());
+        income.setSource(request.getSource());
+        income.setDate(request.getDate());
+        income.setDescription(request.getDescription());
+
+        return mapper.map(income, IncomeResponse.class);
+    }
+
+    /**
      * Borra el ingreso y deshace su efecto en el saldo.
      *
      * Puede fallar con 400, y es correcto que falle: si el dinero de ese ingreso
      * ya esta comprometido en una meta, quitarlo dejaria la meta sin respaldo.
-     * El usuario tiene que liberar la meta primero.
+     * El usuario tiene que liberar la meta primero, o corregir el ingreso con
+     * update en vez de borrarlo.
      */
     @Transactional
     public void delete(User user, Long id) {

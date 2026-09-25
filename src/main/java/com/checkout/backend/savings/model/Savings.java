@@ -2,6 +2,7 @@ package com.checkout.backend.savings.model;
 
 import com.checkout.backend.user.model.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -32,7 +33,14 @@ public class Savings {
             foreignKey = @ForeignKey(name = "fk_savings_user"))
     private User user;
 
+    /**
+     * El @DecimalMin esta por simetria con TokenWallet.tokenBalance, que ya lo
+     * tenia. Que este saldo no pueda ser negativo lo garantizaba solo el debit del
+     * servicio, y una garantia que vive unicamente en una rama de codigo se pierde
+     * el dia que alguien escriba otro camino hacia este campo.
+     */
     @NotNull
+    @DecimalMin(value = "0", message = "El saldo de ahorro no puede ser negativo")
     @Column(name = "current_balance", nullable = false, precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal currentBalance = BigDecimal.ZERO;

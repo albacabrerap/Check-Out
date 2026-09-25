@@ -2,8 +2,9 @@ package com.checkout.backend.token_wallet.tktransaction.repository;
 
 import com.checkout.backend.token_wallet.tktransaction.model.TokenReason;
 import com.checkout.backend.token_wallet.tktransaction.model.TokenTransaction;
-import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -11,7 +12,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface TokenTransactionRepository extends JpaRepository<TokenTransaction, Long> {
 
-    List<TokenTransaction> findByTokenWalletIdOrderByCreatedAtDesc(Long walletId);
+    Page<TokenTransaction> findByTokenWalletIdOrderByCreatedAtDesc(
+            Long walletId, Pageable pageable);
 
     /**
      * Busca un movimiento por el par (motivo, referencia), que tiene UNIQUE en la

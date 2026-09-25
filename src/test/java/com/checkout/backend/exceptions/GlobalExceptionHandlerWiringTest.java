@@ -1,5 +1,6 @@
 package com.checkout.backend.exceptions;
 
+import com.checkout.backend.token_wallet.model.TokenWallet;
 import com.checkout.backend.web.ApiVersioningConfig;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -13,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -208,6 +210,22 @@ class GlobalExceptionHandlerWiringTest {
                         .value("Ocurrio un error interno. Intentalo de nuevo mas tarde."));
     }
 
+    /**
+     * El bloqueo optimista es la defensa contra el doble gasto, y antes de este
+     * handler su exito se le presentaba al usuario como un 500. No es un fallo del
+     * servidor: es una operacion que no se aplico y que se puede reintentar.
+     */
+    @Test
+    @DisplayName("409: un conflicto de bloqueo optimista no es un 500")
+    void optimisticLockIsAConflict() throws Exception {
+        mockMvc.perform(get(BASE + "/wiring/concurrent"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message")
+                        .value("Otra operacion modifico estos datos al mismo tiempo. "
+                                + "Vuelve a intentarlo."));
+    }
+
     // ------------------------------------------------------------------
     // Andamiaje del test
     // ------------------------------------------------------------------
@@ -253,6 +271,15 @@ class GlobalExceptionHandlerWiringTest {
         @GetMapping("/wiring/boom")
         void boom() {
             throw new IllegalStateException("Connection refused to jdbc:postgresql://localhost:5432/checkout");
+        }
+
+        /**
+         * Lo que lanza Hibernate cuando el @Version de una fila no coincide, es
+         * decir cuando dos operaciones simultaneas tocaron el mismo saldo.
+         */
+        @GetMapping("/wiring/concurrent")
+        void concurrent() {
+            throw new ObjectOptimisticLockingFailureException(TokenWallet.class, 1L);
         }
 
         record SampleRequest(

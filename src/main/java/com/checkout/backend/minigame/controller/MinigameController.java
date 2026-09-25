@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -40,22 +41,21 @@ public class MinigameController {
         this.minigameService = minigameService;
     }
 
-    /** GET /api/v1/minigames */
-    @GetMapping
-    public ResponseEntity<List<MinigameResponse>> list() {
-        return ResponseEntity.ok(minigameService.listPublished());
-    }
-
     /**
-     * GET /api/v1/minigames/all
+     * GET /api/v1/minigames — el catalogo jugable
      *
-     * El catalogo completo. La anotacion esta aqui y tambien en el servicio: la
-     * ruta dice quien entra, el servicio protege la operacion aunque se la llame
-     * desde otro sitio.
+     * Con ?includeUnpublished=true incluye borradores y archivados, y eso exige
+     * ADMIN. El permiso lo comprueba el servicio con su propio @PreAuthorize, que
+     * protege la operacion aunque se la llame desde otro sitio; aqui no se puede
+     * anotar el metodo porque lo llaman los dos tipos de usuario.
      */
-    @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<MinigameResponse>> listAll() {
+    @GetMapping
+    public ResponseEntity<List<MinigameResponse>> list(
+            @RequestParam(defaultValue = "false") boolean includeUnpublished) {
+
+        if (!includeUnpublished) {
+            return ResponseEntity.ok(minigameService.listPublished());
+        }
         return ResponseEntity.ok(minigameService.listAll());
     }
 

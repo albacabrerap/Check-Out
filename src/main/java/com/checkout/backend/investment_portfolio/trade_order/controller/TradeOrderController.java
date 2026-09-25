@@ -7,8 +7,10 @@ import com.checkout.backend.user.service.CurrentUserProvider;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
+import com.checkout.backend.web.PageResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,8 +45,9 @@ public class TradeOrderController {
 
     /** GET /api/v1/orders */
     @GetMapping
-    public ResponseEntity<List<TradeOrderResponse>> list() {
-        return ResponseEntity.ok(orderService.list(currentUser.requireCurrentUser()));
+    public ResponseEntity<PageResponse<TradeOrderResponse>> list(
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(orderService.list(currentUser.requireCurrentUser(), pageable));
     }
 
     /** GET /api/v1/orders/{id} */
@@ -84,7 +87,15 @@ public class TradeOrderController {
      * Una orden ya ejecutada no se cancela: deshacerla significaria revertir
      * fichas y posiciones a precios que ya cambiaron.
      */
-    @DeleteMapping("/{id}")
+    /**
+     * POST /api/v1/orders/{id}/cancel
+     *
+     * Es POST sobre un subrecurso y no DELETE sobre la orden, porque cancelar no
+     * borra nada: cambia el estado a CANCELLED y la orden sigue en el historial.
+     * Un DELETE que no elimina y que ademas devuelve cuerpo obliga a cualquier
+     * cliente a aprender una excepcion a la regla.
+     */
+    @PostMapping("/{id}/cancel")
     public ResponseEntity<TradeOrderResponse> cancel(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.cancel(currentUser.requireCurrentUser(), id));
     }

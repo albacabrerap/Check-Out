@@ -9,9 +9,12 @@ import com.checkout.backend.token_wallet.tktransaction.model.TokenReason;
 import com.checkout.backend.token_wallet.tktransaction.model.TokenTransaction;
 import com.checkout.backend.token_wallet.tktransaction.repository.TokenTransactionRepository;
 import com.checkout.backend.user.model.User;
+import com.checkout.backend.web.PageResponse;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,6 +58,23 @@ public class TokenWalletService {
      * El UNIQUE sobre user_id impide que dos peticiones simultaneas dejen dos
      * monederos, que seria la forma mas directa de duplicar el saldo.
      */
+    /**
+     * El monedero del usuario, creandolo en cero la primera vez.
+     *
+     * El UNIQUE sobre user_id impide que dos peticiones simultaneas dejen dos
+     * monederos, que seria la forma mas directa de duplicar el saldo.
+     *
+     * Queda una carrera menor: dos peticiones del mismo usuario que lleguen a la
+     * vez pueden ver las dos que no existe, y la que pierde recibe un 409 en vez de
+     * su monedero. No se parchea aqui con un catch y un reintento porque la
+     * insercion tendria que ir en su propia transaccion, y llamar a un metodo
+     * @Transactional del propio bean no pasa por el proxy: la anotacion no haria
+     * nada y quedaria un arreglo que parece funcionar y no funciona.
+     *
+     * Se resuelve en el origen: AuthService crea monedero, ahorro y cartera al
+     * registrar, dentro de esa misma transaccion. Asi para un usuario registrado
+     * por la aplicacion este metodo nunca inserta, y la carrera no tiene ventana.
+     */
     @Transactional
     public TokenWallet getOrCreate(User user) {
         return walletRepository.findByUserId(user.getId())
@@ -71,12 +91,39 @@ public class TokenWalletService {
     }
 
     @Transactional
-    public List<TokenTransactionResponse> listTransactions(User user) {
-        return transactionRepository
-                .findByTokenWalletIdOrderByCreatedAtDesc(getOrCreate(user).getId())
-                .stream()
-                .map(transaction -> mapper.map(transaction, TokenTransactionResponse.class))
-                .toList();
+    public PageResponse<TokenTransactionResponse> listTransactions(User user, Pageable pageable) {
+        return PageResponse.of(transactionRepository
+                .findByTokenWalletIdOrderByCreatedAtDesc(getOrCreate(user).getId(), pageable)
+                .map(transaction -> mapper.map(transaction, TokenTransactionResponse.class)));
+    }
+
+    /**
+     * Comprueba si el usuario puede gastar un importe, sin tocar nada.
+     *
+     * Existe para que quien tenga que rechazar una operacion pueda decidirlo
+     * *antes* de entrar a escribir, en vez de llamar a record y atrapar su
+     * excepcion. La diferencia no es de estilo: una excepcion que escapa de un
+     * metodo @Transactional marca la transaccion como rollback-only aunque
+     * quien llama la atrape, y el commit posterior falla con
+     * UnexpectedRollbackException. Preguntar primero evita ese camino entero.
+     *
+     * No usa getOrCreate a proposito: es readOnly y no debe crear el monedero
+     * como efecto secundario de una consulta. Un usuario sin monedero tiene
+     * saldo cero, que es la respuesta correcta.
+     *
+     * @return el motivo del rechazo, o vacio si el gasto es posible
+     */
+    @Transactional(readOnly = true)
+    public Optional<String> reasonToRejectSpending(User user, BigDecimal amount) {
+        BigDecimal balance = walletRepository.findByUserId(user.getId())
+                .map(TokenWallet::getTokenBalance)
+                .orElse(BigDecimal.ZERO);
+
+        if (balance.compareTo(amount) < 0) {
+            return Optional.of("No tienes fichas suficientes. Saldo actual: " + balance
+                    + ", se necesitan " + amount + ".");
+        }
+        return Optional.empty();
     }
 
     /**

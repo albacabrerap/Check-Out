@@ -25,6 +25,13 @@ public class PortfolioResponse {
 
     private BigDecimal unrealizedPnl;
 
+    /**
+     * Resultado ya materializado por las ventas. Viene de la entidad, asi que el
+     * mapper lo rellena solo; unrealizedPnl, que no existe en la entidad, lo
+     * calcula el servicio.
+     */
+    private BigDecimal realizedPnl;
+
     private List<PositionResponse> positions;
 
     private LocalDateTime updatedAt;

@@ -2,8 +2,9 @@ package com.checkout.backend.savings.income.repository;
 
 import com.checkout.backend.savings.income.model.Income;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -14,9 +15,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface IncomeRepository extends JpaRepository<Income, Long> {
 
-    List<Income> findByUserIdOrderByDateDesc(Long userId);
+    Page<Income> findByUserIdOrderByDateDesc(Long userId, Pageable pageable);
 
-    List<Income> findByUserIdAndDateBetweenOrderByDateDesc(Long userId, LocalDate from, LocalDate to);
+    Page<Income> findByUserIdAndDateBetweenOrderByDateDesc(
+            Long userId, LocalDate from, LocalDate to, Pageable pageable);
 
     Optional<Income> findByIdAndUserId(Long id, Long userId);
 

@@ -11,11 +11,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import com.checkout.backend.support.DatabaseCleaner;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -40,10 +42,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * seguridad del bloque se sostengan: que el monedero no se pueda acreditar, que
  * el catalogo no se pueda editar desde una cuenta normal, y que una puntuacion
  * inventada no se convierta en fichas ilimitadas.
+ *
+ * Esta clase NO lleva @Transactional, y es deliberado. Con esa anotacion el
+ * metodo de test se convierte en el dueno de la transaccion externa y los
+ * servicios se le unen como participantes, de modo que el commit que la
+ * aplicacion hace en produccion aqui no ocurre. Eso ya escondio un fallo real:
+ * las ordenes rechazadas devolvian 500 por UnexpectedRollbackException y el test
+ * de mas abajo pasaba en verde igualmente. Sin la anotacion, cada test commitea
+ * de verdad y la limpieza se hace en el @AfterEach.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
 class RemainingModulesApiTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -57,6 +66,9 @@ class RemainingModulesApiTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private String anaToken;
     private String adminToken;
@@ -72,6 +84,15 @@ class RemainingModulesApiTest {
                 .roles(EnumSet.of(Role.ADMIN))
                 .build());
         adminToken = accessTokenOf(login("alba@utec.edu.pe"));
+    }
+
+    /**
+     * Sustituye al rollback que antes daba @Transactional. Los tests commitean de
+     * verdad, asi que la base hay que vaciarla explicitamente.
+     */
+    @AfterEach
+    void cleanUp() {
+        DatabaseCleaner.clean(jdbc);
     }
 
     // ------------------------------------------------------------------
@@ -136,10 +157,15 @@ class RemainingModulesApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
 
-        // El administrador si lo ve, en la ruta que le corresponde.
-        mockMvc.perform(admin(get("/api/v1/minigames/all")))
+        // El administrador si lo ve, pidiendo la variante completa del listado.
+        mockMvc.perform(admin(get("/api/v1/minigames").param("includeUnpublished", "true")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)));
+
+        // Y un jugador no puede pedirla: el @PreAuthorize del servicio la protege
+        // aunque el parametro sea del mismo endpoint publico.
+        mockMvc.perform(auth(get("/api/v1/minigames").param("includeUnpublished", "true")))
+                .andExpect(status().isForbidden());
     }
 
     // ------------------------------------------------------------------
@@ -192,12 +218,14 @@ class RemainingModulesApiTest {
         long gratis = createMinigame("Trivia gratis", "0", "40", "PUBLISHED");
         play(gratis, 100);
 
+        // El listado esta paginado, asi que las filas van en $.content.
         mockMvc.perform(auth(get("/api/v1/token-wallet/transactions")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].reason").value("MINIGAME"))
-                .andExpect(jsonPath("$[0].amount").value(40.00))
-                .andExpect(jsonPath("$[0].balanceAfter").value(40.00));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].reason").value("MINIGAME"))
+                .andExpect(jsonPath("$.content[0].amount").value(40.00))
+                .andExpect(jsonPath("$.content[0].balanceAfter").value(40.00));
     }
 
     // ------------------------------------------------------------------
@@ -290,7 +318,8 @@ class RemainingModulesApiTest {
         assertThat(fieldOf(first, "id")).isEqualTo(fieldOf(second, "id"));
 
         mockMvc.perform(auth(get("/api/v1/orders")))
-                .andExpect(jsonPath("$", hasSize(1)));
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.totalElements").value(1));
 
         // Y se cobro una sola vez.
         mockMvc.perform(auth(get("/api/v1/token-wallet")))

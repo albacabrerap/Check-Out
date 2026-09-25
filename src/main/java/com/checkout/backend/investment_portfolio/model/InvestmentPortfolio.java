@@ -52,6 +52,20 @@ public class InvestmentPortfolio {
     @Builder.Default
     private BigDecimal simulatedValue = BigDecimal.ZERO;
 
+    /**
+     * Resultado acumulado de las ventas: lo cobrado menos el coste medio de la
+     * parte vendida, sumado a lo largo de la vida de la cartera.
+     *
+     * Sin @DecimalMin a proposito, al contrario que los dos campos de arriba:
+     * vender con perdida es un resultado legitimo y este numero tiene que poder
+     * ser negativo. Es lo unico que distingue "gane 300" de "perdi 300" cuando
+     * las dos cosas dejan el mismo saldo de fichas que nunca haber operado.
+     */
+    @NotNull
+    @Column(name = "realized_pnl", nullable = false, precision = 19, scale = 2)
+    @Builder.Default
+    private BigDecimal realizedPnl = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default

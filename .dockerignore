@@ -1,0 +1,30 @@
+# Lo que NO entra en el contexto de build.
+#
+# Todo lo que aparece aqui se queda fuera del tar que se manda al daemon de
+# Docker. Importa por dos razones: el build es mas rapido, y sobre todo, nada de
+# esto acaba dentro de una capa de la imagen por accidente.
+
+# El .env real lleva la contrasena de la base, el secreto de firma de los JWT y
+# la del correo. Es la primera linea de este archivo por algo.
+.env
+.env.*
+!.env.example
+
+# El jar y las clases se compilan dentro de la imagen; copiar los de la maquina
+# local ademas de ser inutil puede meter una version distinta de la del fuente.
+target/
+
+# Historial de git: son megas de contexto que la imagen no usa.
+.git/
+.gitignore
+.github/
+
+# Herramientas de desarrollo
+.idea/
+.vscode/
+*.iml
+.mvn/wrapper/maven-wrapper.jar
+
+# Documentacion
+*.md
+!README.md
