@@ -9,20 +9,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Partial update: null fields are left untouched by the mapper.
- */
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+// null fields are left untouched by the mapper.
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class UpdateUserRequest {
-
     @Size(max = 120)
     private String name;
 
     @Past
     private LocalDate birthDate;
-
 }

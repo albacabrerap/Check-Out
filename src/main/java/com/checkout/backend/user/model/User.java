@@ -20,10 +20,8 @@ import java.util.Set;
         name = "users",
         uniqueConstraints = @UniqueConstraint(name = "uk_users_email", columnNames = "email")
 )
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class User {
 
@@ -36,21 +34,15 @@ public class User {
     @Column(nullable = false, length = 120)
     private String name;
 
-    @NotBlank
-    @Email
-    @Size(max = 180)
+    @NotBlank @Email @Size(max = 180)
     @Column(nullable = false, length = 180)
     private String email;
 
-    /** BCrypt hash. The plain password never reaches this entity. */
     @NotBlank
     @Column(name = "password_hash", nullable = false, length = 100)
     private String passwordHash;
 
-    /**
-     * Stored in the user_roles table. A user starts with ROLE USER and an
-     * administrator can grant more.
-     */
+    // A user starts with ROLE USER and an administrator can grant more.
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "user_roles",
@@ -62,33 +54,24 @@ public class User {
     @Builder.Default
     private Set<Role> roles = EnumSet.of(Role.USER);
 
-    /**
-     * Soft delete: deactivating a user must not destroy their financial history.
-     *
-     * The email stays unique across every status on purpose, so the address
-     * keeps identifying the same account. Coming back is a reactivation, not a
-     * new sign-up; registering again with a deactivated address is rejected and
-     * that is the intended behaviour, not an oversight.
-     */
+    // Deactivating a user doesn't destroy their financial history.
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
 
-    @Past
-    @Column(name = "birth_date")
+    @Past @Column(name = "birth_date")
     private LocalDate birthDate;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
+    @UpdateTimestamp @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    /** Identity is the primary key; two unsaved instances are only equal to themselves. */
+    // Identity is the primary key.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -96,7 +79,7 @@ public class User {
         return id != null && id.equals(other.id);
     }
 
-    /** Constant on purpose: the hash must not change when the id is assigned on persist. */
+    // hash shouldn't change when the id is assigned on persist.
     @Override
     public int hashCode() {
         return User.class.hashCode();

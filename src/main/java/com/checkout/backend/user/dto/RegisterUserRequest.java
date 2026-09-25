@@ -11,22 +11,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Public sign-up payload. The plain password lives only in this DTO; the entity stores the BCrypt hash.
- */
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+// Public sign-up payload. The entity stores the BCrypt hash.
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class RegisterUserRequest {
-
-    @NotBlank
-    @Size(max = 120)
+    @NotBlank @Size(max = 120)
     private String name;
 
-    @NotBlank
-    @Email
+    @NotBlank @Email
     @Size(max = 180)
     private String email;
 
@@ -37,5 +30,4 @@ public class RegisterUserRequest {
 
     @Past
     private LocalDate birthDate;
-
 }
