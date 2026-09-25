@@ -5,11 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-
 @RestController
 @Slf4j
 public class EmailController {
-
     private final EmailService emailService;
     private final AsyncFailureHandler failureHandler;
 
@@ -55,5 +53,4 @@ public class EmailController {
         log.info("[request] thread={} returning 202", Thread.currentThread().getName());
         return ResponseEntity.accepted().body("Mail queued");
     }
-
 }
