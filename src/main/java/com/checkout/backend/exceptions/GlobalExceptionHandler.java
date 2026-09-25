@@ -32,6 +32,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -399,6 +400,22 @@ public class GlobalExceptionHandler {
         log.warn("Violacion de integridad en {}", request.getRequestURI(), ex);
         return build(HttpStatus.CONFLICT,
                 "La operacion entra en conflicto con datos ya registrados.", request);
+    }
+
+    /**
+     * El archivo subido supera el limite configurado.
+     *
+     * 413 es el codigo que existe exactamente para esto y le dice al cliente que
+     * el problema es el tamano, no el contenido. Sin este handler la excepcion
+     * cae en el de Exception y sale un 500, que sugiere un fallo del servidor
+     * cuando basta con mandar un archivo mas pequeno.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponseDTO> handleUploadTooLarge(MaxUploadSizeExceededException ex,
+                                                                 HttpServletRequest request) {
+        log.debug("Subida rechazada por tamano en {}", request.getRequestURI());
+        return build(HttpStatus.PAYLOAD_TOO_LARGE,
+                "El archivo supera el tamano maximo permitido.", request);
     }
 
     // ---------------------------------------------------------------------
