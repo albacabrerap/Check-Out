@@ -5,6 +5,9 @@ import com.checkout.backend.token_wallet.service.TokenWalletService;
 import com.checkout.backend.token_wallet.tktransaction.dto.TokenTransactionResponse;
 import com.checkout.backend.user.service.CurrentUserProvider;
 import java.util.List;
+import com.checkout.backend.web.PageResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,8 +54,10 @@ public class TokenWalletController {
      * modo que el historial se puede auditar sin recalcular toda la suma.
      */
     @GetMapping("/transactions")
-    public ResponseEntity<List<TokenTransactionResponse>> listTransactions() {
-        return ResponseEntity.ok(walletService.listTransactions(currentUser.requireCurrentUser()));
+    public ResponseEntity<PageResponse<TokenTransactionResponse>> listTransactions(
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(
+                walletService.listTransactions(currentUser.requireCurrentUser(), pageable));
     }
 
 }

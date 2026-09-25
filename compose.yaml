@@ -37,5 +37,51 @@ services:
     volumes:
       - checkout-postgres-data:/var/lib/postgresql/data
 
+  # La aplicacion. Antes este compose solo levantaba PostgreSQL, asi que "docker
+  # compose up" dejaba media pila en pie y el backend habia que arrancarlo a mano
+  # desde el IDE. Con el servicio aqui, el proyecto entero arranca con un comando
+  # y el mismo Dockerfile que se despliega es el que se prueba en local.
+  app:
+    build: .
+    container_name: check-out-app
+
+    # Espera a que PostgreSQL acepte conexiones, no solo a que el contenedor
+    # exista. Para eso estaba el healthcheck de arriba, que hasta ahora nadie
+    # usaba: sin la condicion, la aplicacion arranca en la ventana en la que el
+    # puerto ya esta abierto pero la base todavia no responde, y muere con un
+    # "connection refused" intermitente.
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+    environment:
+      # postgres, no localhost: dentro de la red de compose el host es el nombre
+      # del servicio. Y el puerto es 5432, el interno del contenedor, no el 5433
+      # que se publica en la maquina.
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-check-out}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+
+      # Perfil de desarrollo: regenera el esquema en cada arranque y publica
+      # Swagger. Ninguna de las dos cosas es el default, precisamente para que un
+      # despliegue no las herede sin pedirlas.
+      SPRING_PROFILES_ACTIVE: dev
+
+      # Sin default a proposito: si falta, el contenedor no arranca y el mensaje
+      # dice que variable es. Generar uno con:  openssl rand -base64 48
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_ACCESS: ${JWT_EXPIRATION_ACCESS:-PT15M}
+      JWT_EXPIRATION_REFRESH: ${JWT_EXPIRATION_REFRESH:-P30D}
+
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:*}
+
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+
 volumes:
   checkout-postgres-data:

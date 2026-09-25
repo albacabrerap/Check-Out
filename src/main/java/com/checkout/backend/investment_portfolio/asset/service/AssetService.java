@@ -15,9 +15,13 @@ import com.checkout.backend.investment_portfolio.asset.quote.repository.AssetQuo
 import com.checkout.backend.investment_portfolio.asset.repository.AssetRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.modelmapper.ModelMapper;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -38,6 +42,16 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class AssetService {
+
+    /**
+     * Cuanto puede envejecer una cotizacion antes de dejar de servir para operar.
+     *
+     * Siete dias es holgado a proposito: en este simulador los precios los carga
+     * un ADMIN a mano, no un proveedor en tiempo real, asi que un umbral corto
+     * dejaria el modulo inutilizable un lunes por la manana. Lo que esto corta es
+     * el caso que si importa, que es operar contra un precio de hace meses.
+     */
+    private static final Duration MAX_QUOTE_AGE = Duration.ofDays(7);
 
     private final AssetRepository assetRepository;
     private final AssetQuoteRepository quoteRepository;
@@ -156,9 +170,40 @@ public class AssetService {
      */
     @Transactional(readOnly = true)
     public AssetQuote requireQuote(Asset asset) {
-        return quoteRepository.findByAssetId(asset.getId())
+        AssetQuote quote = quoteRepository.findByAssetId(asset.getId())
                 .orElseThrow(() -> new InvalidRequestException(
                         "El activo " + asset.getSymbol() + " todavia no tiene cotizacion."));
+
+        // Una cotizacion vieja es peor que ninguna: ejecutar una orden contra el
+        // precio de la semana pasada le da al usuario un precio que no existe, y
+        // lo hace sin avisar de nada. Que exista la fila no significa que sirva.
+        if (quote.getUpdatedAt().isBefore(LocalDateTime.now().minus(MAX_QUOTE_AGE))) {
+            throw new InvalidRequestException(
+                    "La cotizacion de " + asset.getSymbol() + " es del "
+                            + quote.getUpdatedAt().toLocalDate()
+                            + " y esta desactualizada. No se puede operar con ella.");
+        }
+        return quote;
+    }
+
+    /**
+     * El precio actual de varios activos, indexado por activo.
+     *
+     * Es para valorar una cartera completa sin una consulta por posicion. A
+     * diferencia de requireQuote no exige que el precio exista ni que este
+     * reciente: un activo sin entrada en el mapa es un activo que no se puede
+     * valorar, y quien llama lo muestra como desconocido en vez de fallar. La
+     * diferencia es deliberada: no poder operar es un rechazo, no poder valorar es
+     * solo un dato que falta.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> currentPrices(Collection<Long> assetIds) {
+        if (assetIds.isEmpty()) {
+            return Map.of();
+        }
+        return quoteRepository.findByAssetIdIn(assetIds).stream()
+                .collect(Collectors.toMap(
+                        quote -> quote.getAsset().getId(), AssetQuote::getPrice));
     }
 
     /**

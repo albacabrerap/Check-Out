@@ -9,11 +9,15 @@ import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
+import com.checkout.backend.web.PageResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,10 +48,12 @@ public class IncomeController {
      * de depender del locale del servidor.
      */
     @GetMapping
-    public ResponseEntity<List<IncomeResponse>> list(
+    public ResponseEntity<PageResponse<IncomeResponse>> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ResponseEntity.ok(incomeService.list(currentUser.requireCurrentUser(), from, to));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(
+                incomeService.list(currentUser.requireCurrentUser(), from, to, pageable));
     }
 
     /** GET /api/v1/incomes/{id} */
@@ -67,6 +73,19 @@ public class IncomeController {
                 .toUri();
 
         return ResponseEntity.created(location).body(created);
+    }
+
+    /**
+     * PUT /api/v1/incomes/{id}
+     *
+     * Reemplaza el ingreso completo, que es lo que PUT significa. El saldo se
+     * ajusta por la diferencia dentro del servicio.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<IncomeResponse> update(@PathVariable Long id,
+                                                @Valid @RequestBody IncomeRequest request) {
+        return ResponseEntity.ok(
+                incomeService.update(currentUser.requireCurrentUser(), id, request));
     }
 
     /** DELETE /api/v1/incomes/{id} */

@@ -3,8 +3,9 @@ package com.checkout.backend.savings.expense.repository;
 import com.checkout.backend.savings.expense.model.Expense;
 import com.checkout.backend.savings.expense.model.ExpenseCategory;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**
@@ -15,11 +16,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
-    List<Expense> findByUserIdOrderByDateDesc(Long userId);
+    Page<Expense> findByUserIdOrderByDateDesc(Long userId, Pageable pageable);
 
-    List<Expense> findByUserIdAndDateBetweenOrderByDateDesc(Long userId, LocalDate from, LocalDate to);
+    Page<Expense> findByUserIdAndDateBetweenOrderByDateDesc(
+            Long userId, LocalDate from, LocalDate to, Pageable pageable);
 
-    List<Expense> findByUserIdAndCategoryOrderByDateDesc(Long userId, ExpenseCategory category);
+    Page<Expense> findByUserIdAndCategoryOrderByDateDesc(
+            Long userId, ExpenseCategory category, Pageable pageable);
 
     Optional<Expense> findByIdAndUserId(Long id, Long userId);
 

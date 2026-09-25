@@ -2,7 +2,9 @@ package com.checkout.backend.savings;
 
 import com.checkout.backend.user.model.User;
 import com.checkout.backend.user.repository.UserRepository;
+import com.checkout.backend.support.DatabaseCleaner;
 import com.checkout.backend.user.service.CurrentUserProvider;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,8 +15,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -47,7 +49,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @AutoConfigureMockMvc(addFilters = false)
-@Transactional
 class SavingsApiFlowTest {
 
     @Autowired
@@ -59,7 +60,21 @@ class SavingsApiFlowTest {
     @Autowired
     private TestCurrentUserProvider currentUserProvider;
 
+    @Autowired
+    private JdbcTemplate jdbc;
+
     private User ana;
+
+    /**
+     * Sin @Transactional a proposito: estos flujos mueven saldo y comprometen
+     * dinero en metas, y son exactamente los que hay que probar commiteando de
+     * verdad. Envolverlos en la transaccion del test cambia la semantica de
+     * rollback que se esta verificando.
+     */
+    @AfterEach
+    void cleanUp() {
+        DatabaseCleaner.clean(jdbc);
+    }
 
     @BeforeEach
     void setUp() {

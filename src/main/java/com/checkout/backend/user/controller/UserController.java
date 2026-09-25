@@ -1,5 +1,6 @@
 package com.checkout.backend.user.controller;
 
+import com.checkout.backend.user.dto.ChangePasswordRequest;
 import com.checkout.backend.user.dto.UpdateUserRequest;
 import com.checkout.backend.user.dto.UserResponse;
 import com.checkout.backend.user.service.CurrentUserProvider;
@@ -11,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -60,6 +62,22 @@ public class UserController {
      * Baja logica: la cuenta queda inactiva y sus tokens revocados, pero el
      * historial financiero se conserva.
      */
+    /**
+     * PUT /api/v1/users/me/password
+     *
+     * Devuelve 204 y no el usuario: no hay nada nuevo que mostrar, y la respuesta
+     * de una operacion con credenciales es mejor que no lleve cuerpo.
+     *
+     * Ojo al efecto: cierra todas las sesiones, incluida la que hizo la llamada
+     * en sus otros dispositivos. El access token actual sigue valiendo hasta que
+     * expire, porque es sin estado, pero no se podra renovar.
+     */
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        userService.changePassword(currentUser.requireCurrentUser(), request);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/me")
     public ResponseEntity<Void> deleteMe() {
         userService.deactivate(currentUser.requireCurrentUser());

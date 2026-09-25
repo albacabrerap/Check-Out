@@ -47,16 +47,27 @@ public class AssetController {
         this.assetService = assetService;
     }
 
-    /** GET /api/v1/assets — solo los operables */
+    /**
+     * GET /api/v1/assets — el catalogo operable
+     *
+     * Con ?includeInactive=true incluye los dados de baja, y eso exige ADMIN.
+     *
+     * Antes eran dos rutas, /assets y /assets/all, y "all" en la ruta es un
+     * sustantivo que no existe: es una variante del mismo listado, no otro
+     * recurso. Con el parametro, el cliente pide el mismo recurso con otro filtro,
+     * que es para lo que existen los parametros de consulta.
+     *
+     * El control de acceso no puede ser @PreAuthorize a nivel de metodo, porque el
+     * metodo lo llaman los dos tipos de usuario. Se comprueba dentro, solo cuando
+     * se pide la variante privilegiada.
+     */
     @GetMapping
-    public ResponseEntity<List<AssetResponse>> list() {
-        return ResponseEntity.ok(assetService.listActive());
-    }
+    public ResponseEntity<List<AssetResponse>> list(
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
 
-    /** GET /api/v1/assets/all — incluye los dados de baja */
-    @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AssetResponse>> listAll() {
+        if (!includeInactive) {
+            return ResponseEntity.ok(assetService.listActive());
+        }
         return ResponseEntity.ok(assetService.listAll());
     }
 

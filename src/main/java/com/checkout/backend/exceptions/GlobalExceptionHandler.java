@@ -8,6 +8,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -32,6 +33,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -399,6 +401,51 @@ public class GlobalExceptionHandler {
         log.warn("Violacion de integridad en {}", request.getRequestURI(), ex);
         return build(HttpStatus.CONFLICT,
                 "La operacion entra en conflicto con datos ya registrados.", request);
+    }
+
+    /**
+     * Dos operaciones simultaneas tocaron la misma fila y una perdio.
+     *
+     * Esto no es un fallo: es el bloqueo optimista haciendo exactamente su
+     * trabajo. El @Version de Savings, TokenWallet, SavingsGoal e
+     * InvestmentPortfolio existe para que la segunda escritura no pise a la
+     * primera, y cuando salta, la integridad esta a salvo: no hay saldo
+     * incorrecto ni doble gasto, solo una operacion que no se aplico.
+     *
+     * Por eso es 409 y no 500. Un 500 dice "el servidor se rompio, no se que
+     * pasa"; aqui se sabe perfectamente lo que paso y el cliente tiene algo que
+     * hacer al respecto, que es reintentar. Sin este handler la excepcion caia en
+     * el de Exception, y el caso de concurrencia mejor defendido del proyecto se
+     * presentaba al usuario como un error interno.
+     *
+     * Se declara sobre OptimisticLockingFailureException, la de Spring, y no
+     * sobre ObjectOptimisticLockingFailureException, que es la subclase que
+     * lanza Hibernate: asi quedan cubiertas las dos y tambien el caso de un
+     * @Modifying que actualiza cero filas por version obsoleta.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponseDTO> handleOptimisticLock(OptimisticLockingFailureException ex,
+                                                                 HttpServletRequest request) {
+        log.info("Conflicto de concurrencia en {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(HttpStatus.CONFLICT,
+                "Otra operacion modifico estos datos al mismo tiempo. "
+                        + "Vuelve a intentarlo.", request);
+    }
+
+    /**
+     * El archivo subido supera el limite configurado.
+     *
+     * 413 es el codigo que existe exactamente para esto y le dice al cliente que
+     * el problema es el tamano, no el contenido. Sin este handler la excepcion
+     * cae en el de Exception y sale un 500, que sugiere un fallo del servidor
+     * cuando basta con mandar un archivo mas pequeno.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponseDTO> handleUploadTooLarge(MaxUploadSizeExceededException ex,
+                                                                 HttpServletRequest request) {
+        log.debug("Subida rechazada por tamano en {}", request.getRequestURI());
+        return build(HttpStatus.PAYLOAD_TOO_LARGE,
+                "El archivo supera el tamano maximo permitido.", request);
     }
 
     // ---------------------------------------------------------------------
