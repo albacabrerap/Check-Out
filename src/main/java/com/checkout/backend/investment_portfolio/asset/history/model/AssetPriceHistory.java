@@ -10,18 +10,7 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/**
- * Daily closing price of an asset.
- *
- * AssetQuote keeps only the live price, overwritten on every refresh, so on its
- * own it cannot answer what a portfolio was worth last March. This table is
- * what the 3M, 6M, 1Y, 5Y and total charts read: cost basis can be rebuilt from
- * the orders, but market value at a past date cannot be rebuilt from anything
- * else.
- *
- * One row per asset and day, which is what the unique constraint enforces: a
- * second refresh on the same day updates the row instead of appending.
- */
+// Daily closing price of an asset.
 @Entity
 @Table(
         name = "asset_price_history",
@@ -31,35 +20,29 @@ import java.time.LocalDate;
         indexes = @Index(name = "idx_asset_price_history_asset_date",
                 columnList = "asset_id, date")
 )
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class AssetPriceHistory {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** No cascade: pruning the history must never touch the asset. */
-    @NotNull
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    // Pruning the history must never touch the asset.
+    @NotNull @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "asset_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_asset_price_history_asset"))
     private Asset asset;
 
-    @NotNull
-    @PastOrPresent(message = "A closing price cannot be dated in the future")
+    @NotNull @PastOrPresent(message = "A closing price cannot be dated in the future")
     @Column(nullable = false)
     private LocalDate date;
 
-    @NotNull
-    @DecimalMin(value = "0.0", inclusive = false)
+    @NotNull @DecimalMin(value = "0.0", inclusive = false)
     @Column(name = "close_price", nullable = false, precision = 19, scale = 4)
     private BigDecimal closePrice;
 
-    /** Identity is the primary key; two unsaved instances are only equal to themselves. */
+    // Two unsaved instances are only equal to themselves.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -67,9 +50,7 @@ public class AssetPriceHistory {
         return id != null && id.equals(other.id);
     }
 
-    /** Constant on purpose: the hash must not change when the id is assigned on persist. */
+    // Hash must not change when the id is assigned on persist.
     @Override
-    public int hashCode() {
-        return AssetPriceHistory.class.hashCode();
-    }
+    public int hashCode() { return AssetPriceHistory.class.hashCode(); }
 }

@@ -11,39 +11,26 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-/**
- * Cache of the current price of an asset, refreshed in batch by a scheduled
- * job. It is not a price history: the provider already exposes historical
- * candles on demand.
- *
- * Order execution reads the price from here and never calls the provider
- * inside a database transaction.
- */
+// Cache of the current price of an asset, refreshed in batch by a scheduled job.
 @Entity
 @Table(
         name = "asset_quotes",
         uniqueConstraints = @UniqueConstraint(name = "uk_asset_quotes_asset", columnNames = "asset_id")
 )
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class AssetQuote {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotNull
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @NotNull @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "asset_id", nullable = false, unique = true,
             foreignKey = @ForeignKey(name = "fk_asset_quotes_asset"))
     private Asset asset;
 
-    @NotNull
-    @DecimalMin(value = "0.0", inclusive = false)
-    @Column(nullable = false, precision = 19, scale = 4)
+    @NotNull @DecimalMin(value = "0.0", inclusive = false) @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal price;
 
     @Column(name = "previous_close", precision = 19, scale = 4)
@@ -56,12 +43,12 @@ public class AssetQuote {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    /** An order placed against a stale price must be rejected, not guessed. */
+    // An order placed against a stale price must be rejected.
     public boolean isStale(Duration maxAge) {
         return updatedAt == null || updatedAt.isBefore(LocalDateTime.now().minus(maxAge));
     }
 
-    /** Identity is the primary key; two unsaved instances are only equal to themselves. */
+    // Two unsaved instances are only equal to themselves.
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -69,9 +56,7 @@ public class AssetQuote {
         return id != null && id.equals(other.id);
     }
 
-    /** Constant on purpose: the hash must not change when the id is assigned on persist. */
+    // Hash must not change when the id is assigned on persist.
     @Override
-    public int hashCode() {
-        return AssetQuote.class.hashCode();
-    }
+    public int hashCode() { return AssetQuote.class.hashCode(); }
 }

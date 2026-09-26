@@ -7,23 +7,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class AssetResponse {
-
     private Long id;
-
     private String symbol;
-
     private String name;
-
     private AssetType type;
-
     private String currency;
-
     private Boolean active;
-
 }

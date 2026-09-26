@@ -24,43 +24,18 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-/**
- * Catalogo de activos, con su cotizacion y su historico como sub-recursos.
- *
- * La cotizacion y el historico van anidados bajo /assets/{id} y no como
- * controllers sueltos porque ninguno de los dos existe sin su activo: pedir
- * /quotes/{id} obligaria a conocer un identificador que no es el que el cliente
- * tiene en la mano.
- *
- * Escribir el precio es de ADMIN, y es la restriccion mas importante del modulo:
- * ese precio es la base sobre la que se valora la cartera de todos, asi que
- * quien pueda escribirlo puede inflar su propia posicion. En un sistema real
- * vendria de un proveedor externo y no habria endpoint de escritura.
- */
+// Catalogue of actives, price, history and sub-resources.
+// Prices, history -> /assets/{id}
+
 @RestController
 @RequestMapping("/assets")
 public class AssetController {
-
     private final AssetService assetService;
-
     public AssetController(AssetService assetService) {
         this.assetService = assetService;
     }
 
-    /**
-     * GET /api/v1/assets — el catalogo operable
-     *
-     * Con ?includeInactive=true incluye los dados de baja, y eso exige ADMIN.
-     *
-     * Antes eran dos rutas, /assets y /assets/all, y "all" en la ruta es un
-     * sustantivo que no existe: es una variante del mismo listado, no otro
-     * recurso. Con el parametro, el cliente pide el mismo recurso con otro filtro,
-     * que es para lo que existen los parametros de consulta.
-     *
-     * El control de acceso no puede ser @PreAuthorize a nivel de metodo, porque el
-     * metodo lo llaman los dos tipos de usuario. Se comprueba dentro, solo cuando
-     * se pide la variante privilegiada.
-     */
+    // GET /api/v1/assets
     @GetMapping
     public ResponseEntity<List<AssetResponse>> list(
             @RequestParam(defaultValue = "false") boolean includeInactive) {
@@ -71,13 +46,13 @@ public class AssetController {
         return ResponseEntity.ok(assetService.listAll());
     }
 
-    /** GET /api/v1/assets/{id} */
+    // GET /api/v1/assets/{id}
     @GetMapping("/{id}")
     public ResponseEntity<AssetResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(assetService.get(id));
     }
 
-    /** POST /api/v1/assets */
+    // POST /api/v1/assets
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AssetResponse> create(@Valid @RequestBody AssetRequest request) {
@@ -91,12 +66,7 @@ public class AssetController {
         return ResponseEntity.created(location).body(created);
     }
 
-    /**
-     * DELETE /api/v1/assets/{id}
-     *
-     * Baja logica. Las posiciones abiertas sobre este activo siguen valorandose;
-     * lo que deja de poder hacerse es abrir nuevas.
-     */
+    // DELETE /api/v1/assets/{id}
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deactivate(@PathVariable Long id) {
@@ -104,19 +74,13 @@ public class AssetController {
         return ResponseEntity.noContent().build();
     }
 
-    /** GET /api/v1/assets/{id}/quote */
+    // GET /api/v1/assets/{id}/quote
     @GetMapping("/{id}/quote")
     public ResponseEntity<AssetQuoteResponse> getQuote(@PathVariable Long id) {
         return ResponseEntity.ok(assetService.getQuote(id));
     }
 
-    /**
-     * PUT /api/v1/assets/{id}/quote
-     *
-     * Es PUT y no POST porque hay una sola cotizacion por activo y esto la
-     * reemplaza. Guarda ademas el cierre del dia, para que el historico no quede
-     * con huecos cuando el precio se sobrescriba.
-     */
+    // PUT /api/v1/assets/{id}/quote: one price per active
     @PutMapping("/{id}/quote")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AssetQuoteResponse> updateQuote(
@@ -125,11 +89,7 @@ public class AssetController {
         return ResponseEntity.ok(assetService.updateQuote(id, request.price()));
     }
 
-    /**
-     * GET /api/v1/assets/{id}/price-history?from=2026-01-01&to=2026-06-30
-     *
-     * Los cierres diarios que alimentan el grafico.
-     */
+    // GET /api/v1/assets/{id}/price-history?from=2026-01-01&to=2026-06-30
     @GetMapping("/{id}/price-history")
     public ResponseEntity<List<AssetPriceResponse>> priceHistory(
             @PathVariable Long id,
@@ -137,5 +97,4 @@ public class AssetController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return ResponseEntity.ok(assetService.priceHistory(id, from, to));
     }
-
 }

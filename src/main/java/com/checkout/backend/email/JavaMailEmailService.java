@@ -15,19 +15,12 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-/**
- * Envio real por SMTP, en el pool de hilos de correo.
- *
- * El nombre dice con que se implementa, que es lo que distingue a esta clase de
- * cualquier otra implementacion futura. "Implemented" no distingue nada: si
- * manana entra un envio por API de un proveedor, las dos clases se llamarian
- * igual de bien.
- *
- * El JavaMailSender lo autoconfigura Spring Boot a partir de spring.mail.*, asi
- * que no hace falta construirlo a mano: hacerlo duplicaba el host y el puerto
- * en el codigo y en application.properties, y dos sitios para el mismo dato
- * acaban divergiendo.
- */
+// SMTP send to email thread.
+        /*
+JavaMailSender autoconfigures Spring Boot with spring.mail.
+    to avoid duplications of the host and port in the code and application.properties.
+*/
+
 @Service
 public class JavaMailEmailService implements EmailService {
 
@@ -42,12 +35,7 @@ public class JavaMailEmailService implements EmailService {
         this.sender = sender;
     }
 
-    /**
-     * @Async lo saca del hilo de la peticion: un SMTP lento no debe dejar
-     * esperando a quien pidio la operacion. El nombre del executor es explicito
-     * para que el correo use su propio pool y no compita con el resto de tareas
-     * asincronas que el proyecto tenga despues.
-     */
+    // @Async takes it out of the petition thread
     @Async("mailExecutor")
     @Override
     public CompletableFuture<Void> send(EmailDetails details) {
@@ -100,14 +88,7 @@ public class JavaMailEmailService implements EmailService {
         }
     }
 
-    /**
-     * Sin remitente configurado no hay envio posible.
-     *
-     * MAIL_USERNAME tiene default vacio para que la aplicacion arranque sin
-     * configuracion de correo — el resto de la API no deberia depender de ella —
-     * pero entonces el fallo tiene que ser claro aqui y no un error de SMTP que
-     * nadie sepa interpretar.
-     */
+    // Without a configured remitent, no possible send.
     private void requireSenderConfigured() {
         if (sender == null || sender.isBlank()) {
             throw new EmailSenderException(
@@ -115,5 +96,4 @@ public class JavaMailEmailService implements EmailService {
                     new IllegalStateException("spring.mail.username vacio"));
         }
     }
-
 }

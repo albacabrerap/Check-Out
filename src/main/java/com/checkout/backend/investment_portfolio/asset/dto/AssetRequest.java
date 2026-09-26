@@ -11,22 +11,17 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Admin-only payload: the asset catalogue is curated, not user generated.
- */
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+// Admin-only payload: the asset catalogue is curated, not user generated.
+
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class AssetRequest {
 
-    @NotBlank
-    @Size(max = 15)
+    @NotBlank @Size(max = 15)
     private String symbol;
 
-    @NotBlank
-    @Size(max = 120)
+    @NotBlank @Size(max = 120)
     private String name;
 
     @NotNull
@@ -36,7 +31,5 @@ public class AssetRequest {
     @Pattern(regexp = "^[A-Z]{3}$",
             message = "Currency must be a 3-letter ISO code")
     private String currency;
-
     private Boolean active;
-
 }

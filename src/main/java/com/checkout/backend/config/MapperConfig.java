@@ -17,30 +17,19 @@ import org.modelmapper.convention.MatchingStrategies;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Single ModelMapper bean shared by every service.
- *
- * The strategy is STRICT on purpose: it only maps properties whose names match
- * exactly, so a renamed entity field fails loudly instead of silently leaving a
- * DTO field null. The price of that safety is that flattened fields such as
- * "symbol" coming from "asset.symbol" have to be declared here, which is what
- * the type maps below do.
- *
- * Note for callers: the explicit maps walk LAZY associations, so map inside the
- * transaction or fetch the association first, otherwise Hibernate throws
- * LazyInitializationException.
- *
- * These response fields have no source in the entity and stay null after the
- * mapping; the service that builds the response has to compute them:
- *
- * <ul>
- *   <li>SavingsResponse.committedAmount, availableBalance</li>
- *   <li>PortfolioResponse.unrealizedPnl</li>
- *   <li>PositionResponse.currentPrice, marketValue, unrealizedPnl</li>
- *   <li>ProjectionResponse.totalContributed, difference</li>
- *   <li>SavingsGoalResponse.progressPercent</li>
- * </ul>
+// Single ModelMapper bean shared by every service.
+// Note for callers: map inside the transaction or fetch the association first, otherwise Hibernate throws LazyInitializationException.
+
+/*
+ <ul>
+   <li>SavingsResponse.committedAmount, availableBalance</li>
+   <li>PortfolioResponse.unrealizedPnl</li>
+   <li>PositionResponse.currentPrice, marketValue, unrealizedPnl</li>
+   <li>ProjectionResponse.totalContributed, difference</li>
+   <li>SavingsGoalResponse.progressPercent</li>
+ </ul>
  */
+
 @Configuration
 public class MapperConfig {
 
@@ -58,7 +47,7 @@ public class MapperConfig {
         return modelMapper;
     }
 
-    /** Maps the response fields that come from a nested entity. */
+    // Maps the response fields that come from a nested entity.
     private void addFlattenedMappings(ModelMapper modelMapper) {
         modelMapper.typeMap(AssetQuote.class, AssetQuoteResponse.class)
                 .addMappings(map -> {
