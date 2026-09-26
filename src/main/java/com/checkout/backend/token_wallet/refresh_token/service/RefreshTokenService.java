@@ -37,12 +37,15 @@ public class RefreshTokenService {
     private static final int TOKEN_BYTES = 32;
 
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenFamilyRevoker familyRevoker;
     private final JwtProperties properties;
     private final SecureRandom random = new SecureRandom();
 
     public RefreshTokenService(RefreshTokenRepository refreshTokenRepository,
+                               RefreshTokenFamilyRevoker familyRevoker,
                                JwtProperties properties) {
         this.refreshTokenRepository = refreshTokenRepository;
+        this.familyRevoker = familyRevoker;
         this.properties = properties;
     }
 
@@ -74,10 +77,22 @@ public class RefreshTokenService {
      * rotacion, un token robado sirve hasta que caduca; con rotacion, en cuanto
      * el dueno legitimo lo usa el del ladron deja de valer.
      *
-     * Reutilizar un token ya revocado revoca toda la familia del usuario. Es la
-     * senal clasica de que alguien tiene una copia: el legitimo ya lo roto y el
-     * viejo solo puede estar en manos de un tercero. Obliga a volver a entrar,
-     * que es el precio correcto ante esa sospecha.
+     * Hay dos formas de que un canje no prospere y no significan lo mismo:
+     *
+     * <ul>
+     *   <li><b>Reutilizacion.</b> El token llega ya revocado. Es la senal
+     *       clasica de que alguien tiene una copia: el legitimo ya lo roto y el
+     *       viejo solo puede estar en manos de un tercero. Se revoca la familia
+     *       entera y el usuario vuelve a entrar, que es el precio correcto ante
+     *       esa sospecha. La revocacion va en una transaccion aparte
+     *       ({@link RefreshTokenFamilyRevoker}) porque esta se deshace con la
+     *       excepcion que viene justo despues.</li>
+     *   <li><b>Carrera.</b> El token llega vivo pero otra peticion lo canjea
+     *       primero. No es un ataque: es un cliente que disparo dos veces, o
+     *       dos pestanas. Se rechaza solo esta peticion y la sesion del ganador
+     *       sigue viva. Revocar la familia aqui echaria de la aplicacion a un
+     *       usuario legitimo por hacer doble clic.</li>
+     * </ul>
      */
     @Transactional
     public User rotate(String presentedToken) {
@@ -87,7 +102,7 @@ public class RefreshTokenService {
         if (stored.getRevokedAt() != null) {
             log.warn("Reutilizacion de un refresh token ya revocado del usuario {}. "
                     + "Se revoca la familia completa.", stored.getUser().getId());
-            refreshTokenRepository.revokeAllByUserId(stored.getUser().getId(), LocalDateTime.now());
+            familyRevoker.revokeFamily(stored.getUser().getId());
             throw new UnauthenticatedException("El token de refresco no es valido.");
         }
 
@@ -95,8 +110,19 @@ public class RefreshTokenService {
             throw new UnauthenticatedException("El token de refresco expiro.");
         }
 
-        stored.setRevokedAt(LocalDateTime.now());
-        return stored.getUser();
+        // Compare-and-set: la base decide quien gana. Comprobar arriba y
+        // escribir aqui sin esta condicion dejaria pasar a los dos.
+        LocalDateTime now = LocalDateTime.now();
+        User owner = stored.getUser();
+        if (refreshTokenRepository.revokeIfActive(stored.getId(), now) == 0) {
+            log.info("Canje simultaneo del mismo refresh token del usuario {}. "
+                    + "Gana la otra peticion.", owner.getId());
+            throw new UnauthenticatedException("El token de refresco no es valido.");
+        }
+
+        // La base ya lo tiene revocado; esto alinea la entidad cargada.
+        stored.setRevokedAt(now);
+        return owner;
     }
 
     /**

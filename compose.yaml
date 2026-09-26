@@ -8,16 +8,30 @@ services:
     # contenedor y la aplicacion no pueden desalinearse: antes el compose creaba
     # la base con usuario postgres fijo mientras el .env podia decir otra cosa, y
     # la conexion fallaba sin que quedara claro cual de los dos estaba mal.
-    # Los valores tras :- son el respaldo para quien todavia no tiene .env.
+    #
+    # El nombre y el usuario tienen respaldo; la contrasena no. La sintaxis :?
+    # hace que compose se niegue a arrancar y diga que variable falta, en vez de
+    # levantar una base con la contrasena "postgres", que es publica por ser el
+    # ejemplo de todos los tutoriales. Una contrasena por defecto no es un
+    # respaldo comodo: es una credencial conocida esperando a que alguien deje el
+    # puerto alcanzable.
     environment:
       POSTGRES_DB: ${DB_NAME:-check-out}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?falta DB_PASSWORD, copiar .env.example a .env y ponerle una}"
 
-    # 5433 en el host para no chocar con un PostgreSQL instalado en la maquina,
-    # que ya ocupa el 5432. Por eso DB_PORT es 5433 y no 5432.
+    # Publicado solo en 127.0.0.1, no en todas las interfaces.
+    #
+    # Sin el prefijo, Docker abre el puerto en la maquina entera: en una red
+    # compartida —el wifi de la universidad, por ejemplo— cualquiera que este en
+    # ella puede intentar conectarse a la base. Con 127.0.0.1 solo responde a
+    # quien ya esta en esta maquina, que es todo lo que un entorno de desarrollo
+    # necesita. La aplicacion no pasa por aqui: le habla a postgres:5432 por la
+    # red interna de compose.
+    #
+    # 5433 y no 5432 para no chocar con un PostgreSQL instalado en la maquina.
     ports:
-      - "${DB_PORT:-5433}:5432"
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
 
     # Sin esto, Docker da el contenedor por listo en cuanto arranca el proceso,
     # pero PostgreSQL abre el puerto antes de aceptar conexiones: la aplicacion
@@ -31,9 +45,9 @@ services:
       start_period: 10s
 
     # Volumen con nombre: sin el, los datos viven en la capa del contenedor y
-    # desaparecen con un docker compose down. Hoy ddl-auto los borra igual en
-    # cada arranque, pero en cuanto eso pase a validate el volumen es lo que
-    # separa reiniciar de empezar de cero.
+    # desaparecen con un docker compose down. Ahora que el perfil dev usa update
+    # y ya no create-drop, este volumen es lo que de verdad separa reiniciar de
+    # empezar de cero.
     volumes:
       - checkout-postgres-data:/var/lib/postgresql/data
 
@@ -54,8 +68,12 @@ services:
       postgres:
         condition: service_healthy
 
+    # Tambien en 127.0.0.1: con el perfil dev activo esto publica Swagger y el
+    # SQL en el log. Util en la maquina propia, innecesario para el resto de la
+    # red. Para exponerlo a proposito —una demo desde otro equipo— quitar el
+    # prefijo de forma consciente.
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
 
     environment:
       # postgres, no localhost: dentro de la red de compose el host es el nombre
@@ -65,16 +83,34 @@ services:
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-check-out}
       DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_PASSWORD: "${DB_PASSWORD:?falta DB_PASSWORD, copiar .env.example a .env y ponerle una}"
 
-      # Perfil de desarrollo: regenera el esquema en cada arranque y publica
-      # Swagger. Ninguna de las dos cosas es el default, precisamente para que un
+      # Perfil de desarrollo: ajusta el esquema al arrancar y publica Swagger.
+      # Ninguna de las dos cosas es el default, precisamente para que un
       # despliegue no las herede sin pedirlas.
+      #
+      # Este compose es SOLO para desarrollo local. Un despliegue real usa
+      # secretos gestionados en vez de un .env en disco, fija DDL_AUTO=validate
+      # con migraciones versionadas, y no activa este perfil: con dev, Swagger
+      # queda publicado y cada consulta SQL acaba en el log.
       SPRING_PROFILES_ACTIVE: dev
 
-      # Sin default a proposito: si falta, el contenedor no arranca y el mensaje
-      # dice que variable es. Generar uno con:  openssl rand -base64 48
-      JWT_SECRET: ${JWT_SECRET}
+      # DDL_AUTO no se declara aqui a proposito.
+      #
+      # Una variable de entorno pisa a application.properties, asi que fijarla
+      # aqui dejaba a Hibernate creando el esquema y a Flyway sin nada que hacer
+      # —sin fallar, simplemente sin correr—. El esquema lo mandan las
+      # migraciones de db/migration; el properties deja ddl-auto en validate y
+      # ese es el unico valor correcto tambien en local.
+      #
+      # Para empezar de cero: docker compose down -v && docker compose up --build
+
+      # Sin default a proposito: quien tenga esta clave puede emitirse un token
+      # valido para cualquier usuario, incluido un ADMIN. Con :? compose falla
+      # antes de construir nada y dice que variable falta; antes se pasaba vacia
+      # y el error aparecia mas tarde, dentro del arranque de Spring.
+      # Generar uno con:  openssl rand -base64 48
+      JWT_SECRET: "${JWT_SECRET:?falta JWT_SECRET, generarlo con openssl rand -base64 48}"
       JWT_EXPIRATION_ACCESS: ${JWT_EXPIRATION_ACCESS:-PT15M}
       JWT_EXPIRATION_REFRESH: ${JWT_EXPIRATION_REFRESH:-P30D}
 

@@ -99,7 +99,11 @@ public class ContributionService {
                     "El aporte supera lo que falta para la meta (" + remaining + ").");
         }
 
-        BigDecimal available = savingsService.availableBalance(user);
+        // Con bloqueo: el @Version de la meta solo protege contra dos aportes a
+        // la MISMA meta. Dos aportes a metas distintas escriben filas distintas
+        // y nunca chocan, asi que sin serializar aqui los dos validarian contra
+        // el mismo disponible y entre ambos comprometerian mas de lo que hay.
+        BigDecimal available = savingsService.availableBalanceForUpdate(user);
         if (amount.compareTo(available) > 0) {
             throw new InvalidRequestException(
                     "El aporte supera tu saldo disponible de " + available + ".");

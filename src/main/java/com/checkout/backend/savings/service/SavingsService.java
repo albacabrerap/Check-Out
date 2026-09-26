@@ -92,10 +92,45 @@ public class SavingsService {
 
     /**
      * Lo que el usuario puede gastar o comprometer ahora mismo.
+     *
+     * Es una lectura informativa, para mostrar. Quien vaya a <em>decidir</em>
+     * con este numero —gastar o comprometer— debe usar
+     * {@link #availableBalanceForUpdate}, que ademas serializa.
      */
     @Transactional
     public BigDecimal availableBalance(User user) {
         return getOrCreate(user).getCurrentBalance().subtract(committedAmount(user));
+    }
+
+    /**
+     * El registro de ahorro tomado en exclusiva hasta el fin de la transaccion.
+     *
+     * Si la fila todavia no existe se crea: el INSERT ya es exclusivo por el
+     * UNIQUE sobre user_id, asi que no hace falta bloquear algo que nadie mas
+     * puede duplicar.
+     */
+    @Transactional
+    public Savings lockForUpdate(User user) {
+        return savingsRepository.findByUserIdForUpdate(user.getId())
+                .orElseGet(() -> savingsRepository.save(
+                        Savings.builder()
+                                .user(user)
+                                .currentBalance(BigDecimal.ZERO)
+                                .build()));
+    }
+
+    /**
+     * El disponible calculado sobre la fila ya bloqueada.
+     *
+     * Este es el que hay que usar antes de gastar o de comprometer dinero en una
+     * meta. Entre el calculo y la escritura nadie mas puede meterse, porque el
+     * bloqueo de la fila de ahorro se mantiene hasta que la transaccion
+     * termina. Es la unica forma de que el disponible no se pueda repartir dos
+     * veces entre dos operaciones que escriben en filas distintas.
+     */
+    @Transactional
+    public BigDecimal availableBalanceForUpdate(User user) {
+        return lockForUpdate(user).getCurrentBalance().subtract(committedAmount(user));
     }
 
     /**
@@ -116,7 +151,10 @@ public class SavingsService {
      */
     @Transactional
     public void debit(User user, BigDecimal amount) {
-        Savings savings = getOrCreate(user);
+        // Bloqueo la fila antes de mirar el disponible: un gasto y un aporte a
+        // una meta compiten por el mismo dinero aunque escriban en tablas
+        // distintas, y esta fila es el punto donde se encuentran.
+        Savings savings = lockForUpdate(user);
         BigDecimal available = savings.getCurrentBalance().subtract(committedAmount(user));
 
         if (amount.compareTo(available) > 0) {

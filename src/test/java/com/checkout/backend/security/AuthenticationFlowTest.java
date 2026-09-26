@@ -298,32 +298,23 @@ class AuthenticationFlowTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    @DisplayName("Reutilizar un token ya rotado invalida tambien al nuevo")
-    void reusingARotatedTokenRevokesTheFamily() throws Exception {
-        String first = register("ana@utec.edu.pe", "Secreto123!");
-        String firstRefresh = fieldOf(first, "refreshToken");
-
-        String second = mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + firstRefresh + "\"}"))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        String secondRefresh = fieldOf(second, "refreshToken");
-
-        // Que reaparezca el viejo significa que alguien tiene una copia.
-        mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + firstRefresh + "\"}"))
-                .andExpect(status().isUnauthorized());
-
-        // Ante esa sospecha cae la familia entera, incluido el token legitimo:
-        // el usuario vuelve a entrar y el atacante se queda sin nada.
-        mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"" + secondRefresh + "\"}"))
-                .andExpect(status().isUnauthorized());
-    }
+    // La revocacion de la familia por reutilizacion NO se puede probar desde
+    // aqui, y por eso su test vive en RefreshTokenReplayTest.
+    //
+    // Esta clase lleva @Transactional. La revocacion se confirma en una
+    // transaccion propia (RefreshTokenFamilyRevoker, REQUIRES_NEW) para
+    // sobrevivir al rollback de la excepcion que la sigue; pero el contexto de
+    // persistencia de esta transaccion de test ya tiene cargadas esas filas, y
+    // una consulta posterior devuelve la instancia en memoria con revokedAt en
+    // null en vez de lo que la base acaba de escribir. El resultado seria un
+    // test rojo con el codigo correcto.
+    //
+    // Antes esta misma prueba estaba aqui y pasaba en verde con el codigo roto,
+    // porque sin transaccion propia la revocacion se veia dentro de la
+    // transaccion del test aunque en produccion el rollback la deshiciera. Es el
+    // falso positivo que encontro la auditoria integral. En los dos sentidos, el
+    // veredicto de este test dependia de la transaccion del test y no del
+    // comportamiento real.
 
     @Test
     @DisplayName("204: el logout deja el token de refresco sin efecto")
