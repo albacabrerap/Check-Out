@@ -119,41 +119,79 @@ Postman en la raíz del repositorio.
 
 ### Descripción de Entidades
 
-El esquema tiene 19 tablas organizadas por dominio de negocio:
+El esquema tiene 17 tablas organizadas por dominio de negocio:
 
 - **User:** cuenta del usuario, credenciales, rol y estado (activo/inactivo
   vía borrado lógico).
 - **Savings:** saldo real del usuario en soles; relación 1:1 con `User`
   (`UNIQUE(user_id)`).
 - **Income / Expense:** movimientos reales de ingreso y gasto, asociados al
-  usuario.
+  usuario y a su registro de `Savings` (1:N desde ambos).
 - **SavingsGoal:** meta de ahorro con monto objetivo y estado (en progreso,
-  cumplida).
+  cumplida); relación 1:N con `User`.
 - **Contribution:** aporte de un usuario a una `SavingsGoal`; representa el
   "compromiso" de saldo sin moverlo.
-- **TokenWallet:** monedero de fichas del usuario, también 1:1 con `User`.
+- **TokenWallet:** monedero de fichas del usuario, 1:1 con `User`
+  (`UNIQUE(user_id)`).
 - **TokenTransaction:** libro de movimientos de fichas, con
   `UNIQUE(motivo, referencia)` para garantizar idempotencia.
 - **RefreshToken:** tokens de refresco almacenados como hash, con rotación y
   revocación por familia.
-- **InvestmentPortfolio:** cartera simulada del usuario, 1:1 con `User`.
+- **InvestmentPortfolio:** cartera simulada del usuario, 1:1 con `User`
+  (`UNIQUE(user_id)`).
 - **Asset:** catálogo de activos disponibles para operar.
 - **AssetQuote:** cotización vigente de un activo (`UNIQUE(asset_id)`).
 - **AssetPriceHistory:** histórico de cierres por activo y fecha
   (`UNIQUE(asset_id, date)`).
-- **Position:** posición abierta de un usuario sobre un activo.
+- **Position:** posición abierta de un usuario sobre un activo dentro de su
+  `InvestmentPortfolio`.
 - **TradeOrder:** orden de compra/venta, con `clientOrderId` único para
   idempotencia y estados incluyendo `REJECTED`.
 - **Minigame:** catálogo de minijuegos, con `maxTokenReward` como tope de
   recompensa.
-- **MinigameSession:** partida jugada por un usuario sobre un minijuego.
-- **Projection:** proyección de interés simple o compuesto asociada a una
-  meta o a un monto hipotético.
+- **MinigameSession:** partida jugada por un usuario sobre un `Minigame`;
+  es la tabla que resuelve como N:N la participación de usuarios en
+  minijuegos.
+- **Projection:** proyección de interés simple o compuesto; relación 1:N con
+  `User`.
+
+### Relaciones entre Entidades
+
+| Relación | Cardinalidad |
+|---|---|
+| `User` – `Income` | 1:N |
+| `User` – `Expense` | 1:N |
+| `User` – `Savings` | 1:1 |
+| `User` – `SavingsGoal` | 1:N |
+| `User` – `TokenWallet` | 1:1 |
+| `User` – `InvestmentPortfolio` | 1:1 |
+| `User` – `Projection` | 1:N |
+| `User` – `Minigame` (vía `MinigameSession`) | N:N |
+| `Savings` – `Expense` | 1:N |
+| `Savings` – `Income` | 1:N |
+| `SavingsGoal` – `Contribution` | 1:N |
+| `TokenWallet` – `TokenTransaction` | 1:N |
+| `InvestmentPortfolio` – `Position` | 1:N |
+| `InvestmentPortfolio` / `Asset` – `TradeOrder` | 1:N cada uno |
+| `Asset` – `AssetQuote` | 1:1 |
+| `Asset` – `AssetPriceHistory` | 1:N |
 
 Las relaciones 1:1 (`Savings`, `TokenWallet`, `InvestmentPortfolio` con
 `User`) se garantizan a nivel de esquema con `UNIQUE(user_id)`, no solo en
 código. Las claves foráneas están nombradas explícitamente y existen índices
 en las columnas usadas para filtrar (fechas, categorías, usuario).
+
+> **Nota respecto a la propuesta inicial (Entregable 1):** la propuesta
+> planteaba `User`–`InvestmentPortfolio` y `User`–`Minigame` como relaciones
+> N:N directas. En la implementación final, `InvestmentPortfolio` pasó a ser
+> 1:1 con `User` (cada usuario tiene una única cartera, y dentro de ella
+> puede tener múltiples `Position` sobre distintos `Asset`, que es donde vive
+> la multiplicidad); y la relación N:N con `Minigame` se resolvió con la
+> tabla intermedia explícita `MinigameSession`, que además guarda el puntaje
+> y la fecha de cada partida. El resto de entidades y cardinalidades de la
+> propuesta se mantuvo, y se añadieron nuevas (`TokenTransaction`,
+> `RefreshToken`, `Contribution`, `AssetQuote`, `AssetPriceHistory`,
+> `Position`, `TradeOrder`) que la propuesta no anticipaba.
 
 El esquema real vive en migraciones Flyway
 (`src/main/resources/db/migration`), y Hibernate solo valida contra ellas al
