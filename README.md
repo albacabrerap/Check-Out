@@ -46,8 +46,9 @@ Docker y Docker Compose. Nada más: el JDK y Maven viven dentro de las imágenes
 cp .env.example .env
 ```
 
-Abrir `.env` y rellenar lo que falta. Las dos que no tienen valor por defecto y
-sin las cuales la aplicación **no arranca** son:
+Abrir `.env` y rellenar lo que falta. Las dos que no tienen valor por defecto son
+estas, y sin ellas **`docker compose` se niega a arrancar** y dice cuál falta —
+antes de construir nada:
 
 ```bash
 DB_PASSWORD=          # la que quieras; el contenedor de Postgres la usa igual
@@ -102,6 +103,46 @@ chocar con un PostgreSQL instalado localmente. Por eso `DB_PORT=5433` en `.env`.
 No necesitan Docker ni base de datos: corren sobre H2 en modo PostgreSQL, con
 Hibernate generando el esquema desde las entidades, así que un mapeo inválido
 rompe el build en vez de aparecer en producción.
+
+Ahí Flyway va apagado, porque las migraciones son SQL de PostgreSQL y H2 no las
+acepta todas. El precio es que **las migraciones no se prueban en el build**: una
+migración mal escrita pasa el CI y falla al desplegar. Hasta que eso se cierre
+con Testcontainers, toda migración nueva se prueba a mano contra el compose.
+
+---
+
+## Migraciones
+
+El esquema lo mandan los archivos de `src/main/resources/db/migration`, no
+Hibernate. Flyway los aplica al arrancar y Hibernate solo valida: si el esquema
+y las entidades no coinciden, la aplicación no arranca.
+
+Eso vale para todos los entornos, local incluido. Si el esquema se generara solo
+en local y con migraciones al desplegar, cualquier diferencia entre ambos
+aparecería el día del despliegue.
+
+**Cambiar el modelo son dos pasos, no uno.** Tocar una `@Entity` sin añadir su
+migración deja la aplicación sin arrancar, con un mensaje que dice qué tabla o
+columna no cuadra:
+
+```bash
+# 1. cambiar la entidad
+# 2. crear src/main/resources/db/migration/V2__lo_que_hace.sql
+docker compose down -v && docker compose up --build   # probarla desde cero
+```
+
+Reglas que Flyway impone y conviene conocer antes de chocar con ellas:
+
+- **Una migración aplicada no se edita nunca.** Flyway guarda su checksum en
+  `flyway_schema_history` y se niega a arrancar si cambia. Para corregir algo se
+  escribe la migración siguiente.
+- **El número de versión no se reutiliza.** Si dos ramas crean un `V2`, la
+  segunda en mergear pasa a `V3`.
+- **Arrancar de cero es borrar el volumen**, no cambiar `DDL_AUTO`.
+
+La base actual (`V1__baseline_schema.sql`) se generó con `pg_dump` sobre el
+esquema que Hibernate creó desde las entidades, no se escribió a mano: así lo
+que dice la migración es exactamente lo que el modelo describe.
 
 ---
 

@@ -43,4 +43,30 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
             """)
     int revokeAllByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
+    /**
+     * Revoca un token solo si seguia vivo, y dice si lo consiguio.
+     *
+     * Es un compare-and-set: la condicion {@code revokedAt is null} se evalua
+     * dentro del propio UPDATE, asi que la base serializa a los competidores y
+     * exactamente uno se lleva la fila. Leer primero y escribir despues no da
+     * esa garantia — dos peticiones simultaneas leen null las dos, las dos
+     * escriben, y el usuario acaba con dos sesiones vivas a partir de un solo
+     * token.
+     *
+     * A diferencia de {@link #revokeAllByUserId} esta no lleva
+     * {@code clearAutomatically}. Vaciar el contexto aqui desconectaria el
+     * propio token y su usuario, que es justo lo que quien llama necesita
+     * devolver despues; en vez de eso, el llamador pone el mismo valor en la
+     * entidad cargada para que memoria y base digan lo mismo.
+     *
+     * @return 1 si esta llamada fue la que lo revoco, 0 si alguien se adelanto
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update RefreshToken t
+            set t.revokedAt = :now
+            where t.id = :id and t.revokedAt is null
+            """)
+    int revokeIfActive(@Param("id") Long id, @Param("now") LocalDateTime now);
+
 }

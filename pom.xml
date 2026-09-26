@@ -112,6 +112,39 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!--
+          Migraciones versionadas del esquema.
+
+          Antes el esquema lo creaba Hibernate: comodo en local y sin respuesta
+          para un despliegue. Con ddl-auto=validate una base nueva no arranca
+          porque no hay nada que cree las tablas, y con update Hibernate decide
+          por su cuenta que ALTER ejecutar sobre datos reales. Flyway cierra las
+          dos puntas: el SQL esta escrito, versionado y revisado, corre una sola
+          vez y queda registrado en flyway_schema_history.
+
+          Son dos dependencias y ninguna sobra:
+
+          - spring-boot-starter-flyway trae flyway-core Y la autoconfiguracion
+            que lo ejecuta al arrancar. En Boot 4 esa autoconfiguracion vive en
+            su propio modulo, igual que paso con webmvc y con data-jpa-test; con
+            flyway-core a secas la libreria esta en el classpath y no corre
+            nadie, que es un fallo silencioso: la aplicacion arranca, no aplica
+            ninguna migracion y no dice nada.
+          - flyway-database-postgresql porque desde Flyway 10 el soporte de cada
+            motor va aparte, y sin el no reconoce PostgreSQL.
+
+          La version la fija el BOM de Spring Boot (12.4.0 en Boot 4.1.1).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- JWT propio: generacion y validacion de tokens -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
