@@ -10,37 +10,20 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Rejected orders are returned too, with the reason, so the owner can see why a purchase failed.
- */
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+// Rejected orders are returned.
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class TradeOrderResponse {
-
     private Long id;
-
     private String symbol;
-
     private OrderSide side;
-
     private BigDecimal quantity;
-
     private OrderStatus status;
-
     private BigDecimal executionPrice;
-
     private BigDecimal tokensMoved;
-
-    /** Tokens per unit of the asset currency at execution time. */
     private BigDecimal tokenRate;
-
     private String rejectionReason;
-
     private LocalDateTime createdAt;
-
     private LocalDateTime executedAt;
-
 }

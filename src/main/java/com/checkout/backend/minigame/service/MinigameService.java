@@ -12,20 +12,6 @@ import org.modelmapper.ModelMapper;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-/**
- * Catalogo de minijuegos.
- *
- * Es el unico modulo con recursos que no pertenecen a ningun usuario: un
- * minijuego es contenido comun. Eso cambia el modelo de permisos respecto al
- * resto de la API, donde basta con filtrar por dueno.
- *
- * Leer el catalogo lo puede hacer cualquier usuario autenticado. Modificarlo es
- * solo de ADMIN, y no por jerarquia sino por una razon concreta: tokenCost y
- * maxTokenReward son los parametros de la economia de fichas. Quien pueda
- * editarlos puede ponerse un juego que cueste cero y pague mil, y a partir de
- * ahi el saldo de fichas deja de significar nada.
- */
 @Service
 public class MinigameService {
 
@@ -37,13 +23,6 @@ public class MinigameService {
         this.mapper = mapper;
     }
 
-    /**
-     * Catalogo visible para un jugador: solo los publicados.
-     *
-     * Un DRAFT tiene costes y recompensas que todavia se estan ajustando, y un
-     * ARCHIVED se retiro a proposito. Dejar ver cualquiera de los dos permitiria
-     * jugarlos con parametros que nadie aprobo.
-     */
     @Transactional(readOnly = true)
     public List<MinigameResponse> listPublished() {
         return minigameRepository.findByStatusOrderByTitleAsc(MinigameStatus.PUBLISHED)

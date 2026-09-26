@@ -27,34 +27,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Simulador de ordenes de compra y venta.
- *
- * Ejecuta al instante contra la cotizacion vigente: no hay libro de ordenes ni
- * contraparte, porque lo que se simula es la experiencia de invertir, no un
- * mercado. Por eso una orden nace y muere en la misma peticion.
- *
- * Idempotencia. El cliente manda un clientOrderId, que tiene UNIQUE en la tabla.
- * Si reintenta porque no le llego la respuesta, la segunda llamada devuelve la
- * orden que ya se ejecuto en vez de comprar otra vez. Sin eso, un toque doble o
- * una red inestable cuestan dinero al usuario.
- *
- * Una orden que no se puede ejecutar se guarda como REJECTED con su motivo, en
- * vez de desaparecer en un error. El usuario ve en su historial que lo intento y
- * por que no salio, y eso vale tanto como ver las que si salieron.
- */
 @Service
 public class TradeOrderService {
-
-    /**
-     * Fichas por unidad de la moneda del activo.
-     *
-     * Es la tasa del simulador y hoy es uno a uno. Se guarda en cada orden
-     * porque, el dia que cambie, tokensMoved de una orden vieja solo se puede
-     * reproducir con la tasa que estaba vigente al ejecutarla.
-     */
     private static final BigDecimal TOKEN_RATE = BigDecimal.ONE;
-
     private final TradeOrderRepository orderRepository;
     private final AssetService assetService;
     private final PortfolioService portfolioService;
@@ -76,29 +51,6 @@ public class TradeOrderService {
         this.mapper = mapper;
     }
 
-    /**
-     * Coloca una orden y la resuelve.
-     *
-     * El orden de los pasos importa: primero se comprueba la idempotencia, luego
-     * se resuelve el activo y su precio, y solo al final se mueven fichas y
-     * posiciones. Asi ninguna validacion que pueda fallar ocurre despues de haber
-     * tocado un saldo.
-     *
-     * El rechazo se decide preguntando, antes de escribir nada. Antes se hacia al
-     * reves —llamar a record o a applySell y atrapar su InvalidRequestException
-     * para marcar la orden REJECTED— y no funcionaba. El motivo merece quedar
-     * escrito para que nadie lo reintroduzca: esos metodos son @Transactional de
-     * otros beans, asi que se invocan por proxy y participan en esta misma
-     * transaccion. Cuando uno lanza, el interceptor transaccional de Spring marca
-     * la transaccion compartida como rollback-only antes de que la excepcion
-     * llegue al catch. El catch la atrapaba y seguia, pero el commit ya estaba
-     * condenado y salia UnexpectedRollbackException: el cliente recibia un 500 en
-     * lugar de su orden rechazada.
-     *
-     * Preguntar primero elimina ese camino: en el rechazo no se lanza ninguna
-     * excepcion, nada marca la transaccion, y la orden REJECTED se guarda y se
-     * devuelve con normalidad.
-     */
     @Transactional
     public TradeOrderResponse place(User user, TradeOrderRequest request) {
         var alreadyPlaced = orderRepository
@@ -126,10 +78,6 @@ public class TradeOrderService {
         order.setTokenRate(TOKEN_RATE);
         order.setTokensMoved(tokens);
 
-        // Fichas insuficientes o posicion insuficiente no son errores del cliente
-        // que haya que devolverle como un 400: son el resultado de la orden. Se
-        // guarda rechazada con su motivo, y el usuario la ve en su historial igual
-        // que las que si salieron.
         Optional<String> rejection = request.getSide() == OrderSide.BUY
                 ? walletService.reasonToRejectSpending(user, tokens)
                 : portfolioService.reasonToRejectSell(user, asset, request.getQuantity());
@@ -141,10 +89,6 @@ public class TradeOrderService {
             return toResponse(orderRepository.save(order));
         }
 
-        // La orden se guarda antes de mover fichas para que su id pueda viajar
-        // como referencia del asiento. Antes se pasaba null, y eso dejaba el libro
-        // de fichas sin forma de rastrear un movimiento hasta la orden que lo
-        // causo, y sin la idempotencia que da el UNIQUE(reason, reference_id).
         TradeOrder saved = orderRepository.save(order);
 
         if (request.getSide() == OrderSide.BUY) {
@@ -158,9 +102,6 @@ public class TradeOrderService {
         saved.setStatus(OrderStatus.EXECUTED);
         saved.setExecutedAt(LocalDateTime.now());
 
-        // Se anuncia el hecho, no se notifica al usuario desde aqui: quien ejecuta
-        // una orden no tiene por que saber quien esta interesado en que se ejecuto.
-        // El envio ocurre despues del commit, en su listener.
         events.publishEvent(new TradeOrderExecutedEvent(
                 saved.getId(), user.getId(), user.getEmail(), asset.getSymbol(),
                 saved.getSide(), saved.getQuantity(), price, tokens));
@@ -180,17 +121,6 @@ public class TradeOrderService {
         return toResponse(findOwned(user, id));
     }
 
-    /**
-     * Cancela una orden que todavia no se resolvio.
-     *
-     * Con ejecucion inmediata esto casi nunca aplica, porque una orden sale de
-     * place ya ejecutada o rechazada. Existe igual porque el modelo declara el
-     * estado CANCELLED y porque el dia que la ejecucion pase a ser diferida
-     * — una cola, un job — este es el camino que el cliente ya conoce.
-     *
-     * Una orden ya ejecutada no se cancela: deshacerla significaria revertir
-     * fichas y posiciones a precios que ya cambiaron.
-     */
     @Transactional
     public TradeOrderResponse cancel(User user, Long id) {
         TradeOrder order = findOwned(user, id);
@@ -212,5 +142,4 @@ public class TradeOrderService {
     private TradeOrderResponse toResponse(TradeOrder order) {
         return mapper.map(order, TradeOrderResponse.class);
     }
-
 }

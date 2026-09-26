@@ -1,308 +1,208 @@
 # Check-Out / Cash-Out
 
-Backend de una aplicación de educación financiera. El usuario registra sus
-ingresos y gastos reales, se fija metas de ahorro, y aprende a invertir en un
-simulador donde el riesgo es de fichas de juego y no de su dinero.
+**Curso:** CS2031 Desarrollo Basado en Plataformas, 2026-2, UTEC
 
-La idea que sostiene el diseño es la separación entre esas dos economías:
+**Integrantes:**
 
-- **Soles**, que es dinero real del usuario: ingresos, gastos, saldo de ahorro y
-  metas. Aquí el backend solo lleva la cuenta; nunca mueve dinero.
-- **Fichas**, que es moneda del juego: se ganan cumpliendo metas y jugando
-  minijuegos, y se gastan en la cartera de inversión simulada. Ninguna API puede
-  acreditarlas directamente, y eso es deliberado (ver
-  [Decisiones de diseño](#decisiones-de-diseño)).
-
-Proyecto 1 del curso Desarrollo Basado en Plataformas (DBP), 2026-2, UTEC.
+| Nombre | Código |
+|--------|--------|
+| Azul Arbulú Silva | 202510303 |
+| Alba Abigail Cabrera Pilco | 202510505 |
+| Dylan Carlo Van Oordt Arbulú | 202510757 |
+| Ary Fernando Sanchez Cerna | 201920061 |
+| Miguel Angel Flores Cardenas | 202510147 |
 
 ---
 
-## Stack
+## Índice
+
+1. [Introducción](#introducción)
+2. [Identificación del Problema o Necesidad](#identificación-del-problema-o-necesidad)
+3. [Descripción de la Solución](#descripción-de-la-solución)
+4. [Modelo de Entidades](#modelo-de-entidades)
+5. [Manejo de Errores](#manejo-de-errores)
+6. [Medidas de Seguridad Implementadas](#medidas-de-seguridad-implementadas)
+7. [Eventos y Asincronía](#eventos-y-asincronía)
+8. [GitHub & Management](#github--management)
+9. [Conclusión](#conclusión)
+10. [Apéndices](#apéndices)
+
+---
+
+## Introducción
+
+### Contexto
+
+Muchas personas jóvenes llegan a su primer sueldo sin haber manejado antes un
+presupuesto propio, y aprenden a invertir arriesgando dinero
+real desde el primer momento. _Check-Out / Cash-Out_ busca separar esas dos
+etapas: primero, que el usuario entienda y controle sus finanzas reales y, en base a ello, invertir en un
+entorno donde el riesgo son fichas de un juego y no su sueldo.
+
+### Objetivos del Proyecto
+
+- Brindarle al usuario una forma simple de registrar ingresos y gastos reales a la vez, permitirle
+  fijar metas de ahorro con seguimiento disponible y comprometido.
+- Motivar el buen hábito financiero mediante _tokens_ de juego que no involucran
+  dinero real.
+- Ofrecer un simulador de inversión tomando esas mismas fichas para que el usuario practique conceptos
+  de mercado sin exponer capital real.
+- Construir el _backend_ con separación estricta entre ambas economías, de modo
+  que ningún endpoint pueda acreditar fichas o mover dinero real fuera de los
+  flujos de negocio previstos.
+
+---
+
+## Identificación del Problema o Necesidad
+
+### Descripción del Problema
+
+La falta de educación financiera en los estudiantes universitarios, quienes están por comenzar su vida adulta.
+
+### Justificación
+
+Esta solución busca brindarles una herramienta para administrar sus gastos, monitorear sus ingresos y aprender del ahorro y gasto consciente del dinero. Además, informar a los jóvenes sobre los riesgos que se asumen al realizar distintas actividades tales como pedir préstamos, invertir o apostar, así como los beneficios de tener un buen historial crediticio.
+
+---
+
+## Descripción de la Solución
+
+### Funcionalidades Implementadas
+
+- **Autenticación y usuarios:** registro, login, refresh y logout con JWT;
+  gestión del propio perfil (`/users/me`), cambio de contraseña con revocación
+  de sesiones, y borrado lógico de cuenta.
+- **Ahorro en soles:** registro de ingresos y gastos con filtros por fecha y
+  categoría, metas de ahorro y aportes ("sobre virtual") que comprometen saldo
+  sin moverlo, y un endpoint de resumen (`/savings`) con saldo, comprometido y
+  disponible.
+- **Monedero de fichas:** consulta de saldo y del libro de movimientos
+  (`/token-wallet`), sin ningún endpoint de escritura: las fichas solo se
+  generan como efecto de cumplir metas, jugar minijuegos u operar en la
+  cartera.
+- **Inversión simulada:** catálogo de activos con cotización vigente e
+  histórico de precios, colocación y cancelación de órdenes con idempotencia,
+  posiciones abiertas y PnL de la cartera.
+- **Minijuegos:** catálogo administrable de minijuegos y registro de partidas
+  jugadas, con un tope (`maxTokenReward`) que acota el daño posible de una
+  puntuación manipulada del lado del cliente.
+- **Proyecciones:** cálculo de interés simple vs. compuesto para que el
+  usuario proyecte el crecimiento de sus metas.
+- **Correo transaccional:** envío de correos (con o sin adjunto) al usuario
+  autenticado, disparado de forma asíncrona por eventos de dominio.
+
+### Tecnologías Utilizadas
 
 | Pieza | Versión | Por qué |
 |---|---|---|
-| Java | 21 | LTS; `record`, pattern matching y text blocks se usan en el código |
+| Java | 21 | LTS; se usan `record`, pattern matching y text blocks |
 | Spring Boot | 4.1.1 | versión estable, sin artefactos pre-release |
 | Spring Security | 7 | `SecurityFilterChain` y `@EnableMethodSecurity` |
 | jjwt | 0.13 | firma y verificación de los JWT |
 | PostgreSQL | 16 | base de datos de desarrollo y producción |
-| H2 | en memoria, modo PostgreSQL | base de los tests: la suite no necesita Docker |
-| Hibernate / JPA | la del BOM de Boot | persistencia |
-| ModelMapper | 3.2 | Entity ↔ DTO, en estrategia STRICT |
-| SpringDoc OpenAPI | 2.x | documentación navegable de la API |
-| Maven | wrapper incluido (`./mvnw`) | no hace falta instalar Maven |
+| H2 | en memoria, modo PostgreSQL | base de los tests, sin necesidad de Docker |
+| Hibernate / JPA | del BOM de Boot | persistencia |
+| ModelMapper | 3.2 | mapeo Entity ↔ DTO en estrategia STRICT |
+| SpringDoc OpenAPI | 2.x | documentación navegable de la API (Swagger) |
+| Maven (wrapper) | incluido | build sin instalar Maven localmente |
+| Docker / Docker Compose | — | orquesta PostgreSQL y la aplicación |
+
+La API completa cuelga de `/api/v1` (versionado centralizado en
+`web/ApiVersioningConfig`) y está documentada también en una colección de
+Postman en la raíz del repositorio.
 
 ---
 
-## Cómo levantarlo
+## Modelo de Entidades
 
-### Requisitos
+![](cashout-er-v3.png)
 
-Docker y Docker Compose. Nada más: el JDK y Maven viven dentro de las imágenes.
+### Descripción de Entidades
 
-### 1. Configurar el entorno
+El esquema tiene 17 tablas organizadas por dominio de negocio:
 
-```bash
-cp .env.example .env
-```
+- **User:** cuenta del usuario, credenciales, rol y estado (activo/inactivo
+  vía borrado lógico).
+- **Savings:** saldo real del usuario en soles; relación 1:1 con `User`
+  (`UNIQUE(user_id)`).
+- **Income / Expense:** movimientos reales de ingreso y gasto, asociados al
+  usuario y a su registro de `Savings` (1:N desde ambos).
+- **SavingsGoal:** meta de ahorro con monto objetivo y estado (en progreso,
+  cumplida); relación 1:N con `User`.
+- **Contribution:** aporte de un usuario a una `SavingsGoal`; representa el
+  "compromiso" de saldo sin moverlo.
+- **TokenWallet:** monedero de fichas del usuario, 1:1 con `User`
+  (`UNIQUE(user_id)`).
+- **TokenTransaction:** libro de movimientos de fichas, con
+  `UNIQUE(motivo, referencia)` para garantizar idempotencia.
+- **RefreshToken:** tokens de refresco almacenados como hash, con rotación y
+  revocación por familia.
+- **InvestmentPortfolio:** cartera simulada del usuario, 1:1 con `User`
+  (`UNIQUE(user_id)`).
+- **Asset:** catálogo de activos disponibles para operar.
+- **AssetQuote:** cotización vigente de un activo (`UNIQUE(asset_id)`).
+- **AssetPriceHistory:** histórico de cierres por activo y fecha
+  (`UNIQUE(asset_id, date)`).
+- **Position:** posición abierta de un usuario sobre un activo dentro de su
+  `InvestmentPortfolio`.
+- **TradeOrder:** orden de compra/venta, con `clientOrderId` único para
+  idempotencia y estados incluyendo `REJECTED`.
+- **Minigame:** catálogo de minijuegos, con `maxTokenReward` como tope de
+  recompensa.
+- **MinigameSession:** partida jugada por un usuario sobre un `Minigame`;
+  es la tabla que resuelve como N:N la participación de usuarios en
+  minijuegos.
+- **Projection:** proyección de interés simple o compuesto; relación 1:N con
+  `User`.
 
-Abrir `.env` y rellenar lo que falta. Las dos que no tienen valor por defecto son
-estas, y sin ellas **`docker compose` se niega a arrancar** y dice cuál falta —
-antes de construir nada:
+### Relaciones entre Entidades
 
-```bash
-DB_PASSWORD=          # la que quieras; el contenedor de Postgres la usa igual
-JWT_SECRET=           # mínimo 32 caracteres
-```
+| Relación | Cardinalidad |
+|---|---|
+| `User` – `Income` | 1:N |
+| `User` – `Expense` | 1:N |
+| `User` – `Savings` | 1:1 |
+| `User` – `SavingsGoal` | 1:N |
+| `User` – `TokenWallet` | 1:1 |
+| `User` – `InvestmentPortfolio` | 1:1 |
+| `User` – `Projection` | 1:N |
+| `User` – `Minigame` (vía `MinigameSession`) | N:N |
+| `Savings` – `Expense` | 1:N |
+| `Savings` – `Income` | 1:N |
+| `SavingsGoal` – `Contribution` | 1:N |
+| `TokenWallet` – `TokenTransaction` | 1:N |
+| `InvestmentPortfolio` – `Position` | 1:N |
+| `InvestmentPortfolio` / `Asset` – `TradeOrder` | 1:N cada uno |
+| `Asset` – `AssetQuote` | 1:1 |
+| `Asset` – `AssetPriceHistory` | 1:N |
 
-Para generar el secreto:
+Las relaciones 1:1 (`Savings`, `TokenWallet`, `InvestmentPortfolio` con
+`User`) se garantizan a nivel de esquema con `UNIQUE(user_id)`, no solo en
+código. Las claves foráneas están nombradas explícitamente y existen índices
+en las columnas usadas para filtrar (fechas, categorías, usuario).
 
-```bash
-openssl rand -base64 48
-```
+> **Nota respecto a la propuesta inicial (Entregable 1):** la propuesta
+> planteaba `User`–`InvestmentPortfolio` y `User`–`Minigame` como relaciones
+> N:N directas. En la implementación final, `InvestmentPortfolio` pasó a ser
+> 1:1 con `User` (cada usuario tiene una única cartera, y dentro de ella
+> puede tener múltiples `Position` sobre distintos `Asset`); y la relación N:N con `Minigame` se resolvió con la
+> tabla intermedia explícita `MinigameSession`. El resto de entidades y cardinalidades de la
+> propuesta se mantuvo, y se añadieron nuevas (`TokenTransaction`,
+> `RefreshToken`, `Contribution`, `AssetQuote`, `AssetPriceHistory`,
+> `Position`, `TradeOrder`) que la propuesta inicial no incluía.
 
-El arranque falla con un mensaje explícito si el secreto mide menos de 32
-caracteres, porque HS256 necesita 256 bits. Es a propósito: un secreto con valor
-por defecto termina usándose en producción sin que nadie lo note, y con él
-cualquiera que haya leído el repositorio puede emitirse un token válido.
-
-`.env` está en `.gitignore` y no se commitea nunca.
-
-### 2. Levantar todo
-
-```bash
-docker compose up --build
-```
-
-Eso arranca PostgreSQL y la aplicación. El backend espera a que la base acepte
-conexiones de verdad antes de arrancar, no solo a que el contenedor exista.
-
-- API: `http://localhost:8080/api/v1`
-- Swagger: `http://localhost:8080/swagger-ui.html`
-
-El servicio `app` del compose activa el perfil `dev`, que regenera el esquema en
-cada arranque y publica Swagger. Ninguna de las dos cosas es el comportamiento
-por defecto, justamente para que un despliegue no las herede sin pedirlas.
-
-### Alternativa: solo la base, y la aplicación desde el IDE
-
-```bash
-docker compose up -d postgres
-SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
-```
-
-Ojo con el puerto: el contenedor publica **5433** en la máquina, no 5432, para no
-chocar con un PostgreSQL instalado localmente. Por eso `DB_PORT=5433` en `.env`.
-
-### 3. Correr los tests
-
-```bash
-./mvnw test
-```
-
-No necesitan Docker ni base de datos: corren sobre H2 en modo PostgreSQL, con
-Hibernate generando el esquema desde las entidades, así que un mapeo inválido
-rompe el build en vez de aparecer en producción.
-
-Ahí Flyway va apagado, porque las migraciones son SQL de PostgreSQL y H2 no las
-acepta todas. El precio es que **las migraciones no se prueban en el build**: una
-migración mal escrita pasa el CI y falla al desplegar. Hasta que eso se cierre
-con Testcontainers, toda migración nueva se prueba a mano contra el compose.
-
----
-
-## Migraciones
-
-El esquema lo mandan los archivos de `src/main/resources/db/migration`, no
-Hibernate. Flyway los aplica al arrancar y Hibernate solo valida: si el esquema
-y las entidades no coinciden, la aplicación no arranca.
-
-Eso vale para todos los entornos, local incluido. Si el esquema se generara solo
-en local y con migraciones al desplegar, cualquier diferencia entre ambos
-aparecería el día del despliegue.
-
-**Cambiar el modelo son dos pasos, no uno.** Tocar una `@Entity` sin añadir su
-migración deja la aplicación sin arrancar, con un mensaje que dice qué tabla o
-columna no cuadra:
-
-```bash
-# 1. cambiar la entidad
-# 2. crear src/main/resources/db/migration/V2__lo_que_hace.sql
-docker compose down -v && docker compose up --build   # probarla desde cero
-```
-
-Reglas que Flyway impone y conviene conocer antes de chocar con ellas:
-
-- **Una migración aplicada no se edita nunca.** Flyway guarda su checksum en
-  `flyway_schema_history` y se niega a arrancar si cambia. Para corregir algo se
-  escribe la migración siguiente.
-- **El número de versión no se reutiliza.** Si dos ramas crean un `V2`, la
-  segunda en mergear pasa a `V3`.
-- **Arrancar de cero es borrar el volumen**, no cambiar `DDL_AUTO`.
-
-La base actual (`V1__baseline_schema.sql`) se generó con `pg_dump` sobre el
-esquema que Hibernate creó desde las entidades, no se escribió a mano: así lo
-que dice la migración es exactamente lo que el modelo describe.
+El esquema real se encuentra en migraciones Flyway
+(`src/main/resources/db/migration`), y Hibernate solo valida contra ellas al
+arrancar: si una entidad y una migración no coinciden, la aplicación no
+levanta. Esto evita que el modelo de datos de código y el de base de datos
+diverjan silenciosamente entre entornos.
 
 ---
 
-## Perfiles y variables
+## Manejo de Errores
 
-El archivo base es seguro por omisión, y hay que pedir explícitamente lo
-contrario. Antes era al revés, y olvidarse era silencioso.
-
-| Variable | Default | Qué hace |
-|---|---|---|
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | — | conexión a PostgreSQL; obligatorias |
-| `JWT_SECRET` | — | firma de los tokens, mínimo 32 caracteres; obligatoria |
-| `JWT_EXPIRATION_ACCESS` | — | duración del access token, formato ISO-8601 (`PT15M`) |
-| `JWT_EXPIRATION_REFRESH` | — | duración del refresh token (`P30D`) |
-| `DDL_AUTO` | `validate` | qué hace Hibernate con el esquema al arrancar |
-| `SHOW_SQL` | `false` | imprime cada consulta en el log |
-| `SWAGGER_ENABLED` | `false` | publica `/swagger-ui.html` y `/v3/api-docs` |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:*` | orígenes del front, separados por coma |
-| `MAIL_USERNAME`, `MAIL_PASSWORD` | vacío | credenciales SMTP; sin ellas el envío falla al usarse |
-
-El perfil `dev` (`SPRING_PROFILES_ACTIVE=dev`) pone `DDL_AUTO=create-drop`,
-`SHOW_SQL=true` y `SWAGGER_ENABLED=true`.
-
-**En producción:** dejar `DDL_AUTO` en `validate`, `SHOW_SQL` y
-`SWAGGER_ENABLED` en `false`, y fijar `CORS_ALLOWED_ORIGINS` al dominio real del
-front. No usar `*`: con credenciales el navegador lo rechaza, y abre la API a
-cualquier página.
-
-Un test del build (`ConfigurationContractTest`) falla si una variable sin valor
-por defecto no está documentada en `.env.example`, si la plantilla nombra
-variables que ya nadie lee, o si alguna credencial queda escrita en
-`application.properties`.
-
----
-
-## Estructura
-
-Los paquetes están organizados por dominio, no por capa técnica: todo lo de una
-meta de ahorro —entidad, DTOs, repositorio, servicio, controller— vive junto.
-Cambiar una regla de negocio se hace en una carpeta y no en cinco.
-
-```
-com.checkout.backend
-├── user/                    usuarios, autenticación, registro y login
-├── savings/                 ahorro en soles
-│   ├── income/              ingresos
-│   ├── expense/             gastos
-│   └── goal/                metas de ahorro
-│       └── contribution/    aportes a una meta
-├── token_wallet/            monedero de fichas
-│   ├── tktransaction/       libro de movimientos de fichas
-│   └── refresh_token/       tokens de refresco
-├── investment_portfolio/    cartera simulada
-│   ├── asset/               catálogo de activos, cotización e histórico
-│   ├── position/            posiciones abiertas
-│   └── trade_order/         órdenes de compra y venta
-├── minigame/                catálogo de minijuegos
-│   └── session/             partidas jugadas
-├── projection/              proyecciones de interés simple y compuesto
-├── email/                   envío de correo, asíncrono
-├── notification/            listeners que reaccionan a eventos de dominio
-├── security/                filtro JWT, cadena de seguridad, roles
-├── exceptions/              excepciones propias y handler global
-├── config/                  ModelMapper, executor async
-└── web/                     versionado de la API
-```
-
-Dentro de cada dominio: `model/`, `dto/`, `repository/`, `service/`,
-`controller/`, y `event/` donde hay eventos.
-
----
-
-## La API
-
-Todo cuelga de `/api/v1`, aplicado de forma centralizada en
-`web/ApiVersioningConfig`. Ningún controller repite el prefijo a mano.
-
-### Autenticación — público
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `POST` | `/auth/register` | registra y devuelve los tokens · `201` |
-| `POST` | `/auth/login` | devuelve los tokens · `200` |
-| `POST` | `/auth/refresh` | rota el refresh token · `200` |
-| `POST` | `/auth/logout` | revoca el refresh token · `204` |
-
-`logout` es público a propósito: con un access token ya expirado hay que poder
-cerrar sesión igualmente.
-
-### Usuario
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `GET` | `/users/me` | el propio perfil |
-| `PATCH` | `/users/me` | cambia nombre y fecha de nacimiento |
-| `PUT` | `/users/me/password` | cambia la contraseña; revoca las demás sesiones |
-| `DELETE` | `/users/me` | desactiva la cuenta (borrado lógico) · `204` |
-| `GET` | `/users` | lista todos · **ADMIN** |
-
-### Ahorro en soles
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `GET` | `/savings` | saldo, comprometido y disponible |
-| `GET` `POST` `PUT` `DELETE` | `/incomes`, `/incomes/{id}` | ingresos; el listado acepta `from`, `to`, `page`, `size` |
-| `GET` `POST` `PUT` `DELETE` | `/expenses`, `/expenses/{id}` | gastos; mismos filtros más `category` |
-| `GET` `POST` `PUT` `DELETE` | `/savings-goals`, `/savings-goals/{id}` | metas |
-| `GET` `POST` | `/savings-goals/{goalId}/contributions` | aportes a una meta |
-
-### Fichas
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `GET` | `/token-wallet` | saldo de fichas |
-| `GET` | `/token-wallet/transactions` | libro de movimientos, paginado |
-
-**No hay escritura.** Ver [Decisiones de diseño](#decisiones-de-diseño).
-
-### Inversión simulada
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `GET` | `/portfolio` | cartera con valor de mercado y PnL |
-| `GET` | `/portfolio/positions` | posiciones abiertas |
-| `GET` | `/assets` | catálogo activo |
-| `GET` | `/assets?includeInactive=true` | incluye los desactivados · **ADMIN** |
-| `POST` `DELETE` | `/assets`, `/assets/{id}` | alta y baja lógica · **ADMIN** |
-| `GET` | `/assets/{id}/quote` | cotización vigente |
-| `PUT` | `/assets/{id}/quote` | fija el precio · **ADMIN** |
-| `GET` | `/assets/{id}/price-history` | histórico de cierres, con `from` y `to` |
-| `GET` `POST` | `/orders` | historial y colocación de órdenes |
-| `POST` | `/orders/{id}/cancel` | cancela una orden pendiente |
-
-### Minijuegos
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `GET` | `/minigames` | catálogo publicado |
-| `GET` | `/minigames?includeUnpublished=true` | incluye borradores y archivados · **ADMIN** |
-| `POST` `PUT` `DELETE` | `/minigames`, `/minigames/{id}` | gestión del catálogo · **ADMIN** |
-| `GET` `POST` | `/minigame-sessions` | partidas jugadas |
-
-### Proyecciones
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `GET` `POST` `DELETE` | `/projections`, `/projections/{id}` | interés simple vs compuesto |
-
-### Correo
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| `POST` | `/emails` | envía al usuario autenticado · `202` |
-| `POST` | `/emails/with-attachment` | igual, con un archivo subido por multipart · `202` |
-
-El destinatario **no** viaja en el cuerpo: sale del token.
-
-### Errores
-
-Todos los endpoints devuelven el mismo formato:
+Todos los endpoints devuelven el mismo formato de error, resuelto por un
+`@ControllerAdvice` global:
 
 ```json
 {
@@ -317,170 +217,235 @@ Todos los endpoints devuelven el mismo formato:
 }
 ```
 
-`fieldErrors` solo aparece cuando hay errores de validación por campo.
+`fieldErrors` solo aparece cuando la causa es una validación por campo. Los
+códigos de estado usados son:
 
 | Código | Cuándo |
 |---|---|
 | `400` | validación, o una regla de negocio que depende del estado guardado |
 | `401` | sin token, token inválido o expirado |
 | `403` | autenticado pero sin el rol necesario |
-| `404` | no existe, **o es de otro usuario** |
-| `409` | duplicado, o conflicto de concurrencia |
+| `404` | el recurso no existe, o es de otro usuario |
+| `409` | duplicado, o conflicto de concurrencia (versión optimista) |
 | `413` | adjunto demasiado grande |
-| `422` | no se usa |
 | `500` | error interno; el mensaje nunca revela el detalle |
 
-Pedir un recurso de otro usuario devuelve **404 y no 403**: un 403 confirmaría
-que ese ID existe y es de alguien.
+Dos decisiones deliberadas dentro de este manejo:
+
+- **404 en vez de 403 para recursos ajenos.** Pedir un recurso de otro usuario
+  devuelve `404`, no `403`: un `403` confirmaría que ese ID existe y es de
+  otra persona, filtrando información.
+- **Rechazo de negocio no es excepción.** Una orden sin fichas o sin posición
+  suficiente no se modela como excepción: se evalúa antes de escribir y se
+  persiste como `REJECTED` con `201`, porque una excepción que escapa de un
+  método `@Transactional` deja la transacción en rollback-only aunque quien
+  llama la atrape.
+
+Las excepciones personalizadas están organizadas por categoría, lo
+que permite que el _handler global_ las traduzca de forma consistente al
+formato anterior.
 
 ---
 
-## Decisiones de diseño
+## Medidas de Seguridad Implementadas
 
-### El monedero de fichas no tiene API de escritura
+### Seguridad de Datos
 
-No existe ningún endpoint que acredite o descuente fichas, y en el proyecto no
-hay ningún `TokenWalletRequest`. Las fichas se mueven solo como consecuencia de
-un hecho —una meta cumplida, una partida jugada, una orden ejecutada— y siempre
-desde el servicio que gobierna ese hecho.
+- **JWT** con claims `sub` (email), `uid` (id de usuario), `roles`, `iat` y
+  `exp`. El secreto se lee de variables de entorno, exige mínimo 32
+  caracteres (256 bits para HS256) y la aplicación se niega a arrancar si no
+  se cumple.
+- **Refresh tokens** guardados como hash SHA-256, nunca en claro. Rotan en
+  cada uso; si se detecta la reutilización de uno ya revocado, se revoca toda
+  la familia de tokens del usuario como defensa ante un token robado.
+- **BCrypt** para contraseñas, con política mínima de 8 caracteres incluyendo
+  mayúscula, minúscula, dígito y símbolo.
+- **Roles y autorización** con `@PreAuthorize` sobre operaciones sensibles
+  (gestión de catálogo de activos y minijuegos, listado de usuarios).
+- **Ownership resuelto en la consulta:** los repositorios usan
+  `findByIdAndUserId(...)` en vez de `findById(...)` más una comprobación
+  posterior, de modo que el filtro de pertenencia está en el `WHERE` y no se
+  puede olvidar.
+- **CORS** restringido por variable de entorno (`CORS_ALLOWED_ORIGINS`), sin
+  comodín `*`, especialmente relevante porque las peticiones van con
+  credenciales.
+- Backend sin estado: no hay sesión de servidor, toda la identidad viaja en
+  el JWT.
 
-Si un usuario pudiera llamar a un endpoint para sumarse fichas, el saldo dejaría
-de significar nada, y con él los minijuegos y la cartera.
+### Prevención de Vulnerabilidades
 
-Cada movimiento queda en `token_transactions` con el saldo resultante, así que el
-libro se puede auditar en cualquier punto y una desviación se detecta leyendo una
-sola fila.
-
-### El sobre virtual
-
-Un aporte a una meta no mueve dinero: **compromete** dinero que ya estaba en el
-saldo.
-
-```
-disponible = saldo actual − comprometido en metas en progreso
-```
-
-Un gasto se valida contra el **disponible**, no contra el saldo total, así que el
-dinero apartado para una meta no se puede gastar sin sacarlo de la meta primero.
-Esto evita la doble contabilización, que es el error habitual cuando "ahorro" y
-"saldo" son dos números que se actualizan por separado.
-
-### Idempotencia
-
-Dos sitios donde un reintento costaría dinero:
-
-- **Órdenes.** El cliente manda un `clientOrderId`, con `UNIQUE` en la tabla. Si
-  reintenta porque no le llegó la respuesta, la segunda llamada devuelve la orden
-  que ya se ejecutó en vez de comprar otra vez.
-- **Movimientos de fichas.** El par `(motivo, referencia)` es `UNIQUE`. La misma
-  meta no puede pagar recompensa dos veces ni con un reintento.
-
-### Concurrencia
-
-`@Version` en `Savings`, `TokenWallet`, `SavingsGoal` e `InvestmentPortfolio`.
-Dos operaciones simultáneas sobre el mismo saldo leen la misma versión; la
-segunda en escribir falla y la operación no se aplica, en vez de pisar a la
-primera.
-
-El cliente recibe un **409**, no un 500: la integridad está a salvo y hay algo
-que hacer, que es reintentar.
-
-Las anotaciones de Bean Validation **no** protegen contra esto. Un
-`@DecimalMin("0")` no impide que dos peticiones lean 100 y gasten 80 cada una.
-Lo que lo impide es la versión. Está verificado con hilos reales en
-`WalletConcurrencyTest`.
-
-### Una orden rechazada se guarda
-
-Fichas insuficientes o posición insuficiente no son errores del cliente: son el
-resultado de la orden. Se guarda como `REJECTED` con su motivo y se devuelve
-`201`. El usuario ve en su historial que lo intentó y por qué no salió.
-
-Eso obliga a decidir el rechazo **preguntando antes de escribir**, no lanzando una
-excepción y atrapándola: una excepción que escapa de un método `@Transactional`
-marca la transacción como rollback-only aunque quien llama la atrape, y el commit
-posterior falla. Está explicado en el Javadoc de `TradeOrderService.place`.
-
-### Eventos de dominio
-
-Cumplir una meta y ejecutar una orden publican un evento. Los listeners son
-`@TransactionalEventListener(phase = AFTER_COMMIT)`, así que el correo sale solo
-si el commit ocurrió de verdad.
-
-Un `@EventListener` normal correría dentro de la transacción, y si esta acabara en
-rollback el usuario tendría en su buzón la felicitación por una meta que la base
-nunca registró. Un correo no se deshace con la transacción.
-
-### La puntuación de un minijuego no se puede verificar
-
-El juego corre en el cliente, y el cliente es código que el usuario controla, así
-que nada impide enviar la puntuación que se quiera.
-
-Lo que sí se hace es acotar el daño: la recompensa nunca supera el
-`maxTokenReward` que el catálogo declara, y el catálogo solo lo edita un ADMIN.
-La peor manipulación posible equivale a jugar perfecto, no a imprimir fichas. La
-partida además se cobra por adelantado, así que repetir tiene un coste real.
-
-La solución completa es resolver la partida en el servidor. Es un módulo entero y
-no entra en este alcance; mientras tanto, este tope es lo que sostiene la
-economía.
-
-### Cotización vigente e histórico son dos tablas
-
-`asset_quotes` tiene `UNIQUE(asset_id)`: guarda el precio actual y se sobrescribe.
-El histórico para el gráfico vive en `asset_price_history` con
-`UNIQUE(asset_id, date)`, y las dos se escriben en la misma transacción. Si el
-cierre no se guardara en ese momento, el precio anterior se perdería.
-
-Una cotización de más de siete días no sirve para operar: se rechaza la orden en
-vez de ejecutarla contra un precio que ya no existe.
+- **Inyección SQL:** uso de JPA/Hibernate con consultas parametrizadas; no
+  hay concatenación de SQL con entrada de usuario.
+- **Fuga de datos entre usuarios:** mitigada con el patrón de ownership en el
+  `WHERE` y con la política de `404` sobre recursos ajenos.
+- **Configuración insegura por omisión:** el archivo de configuración base es
+  seguro por defecto (`DDL_AUTO=validate`, `SWAGGER_ENABLED=false`,
+  `SHOW_SQL=false`); hay que pedir explícitamente lo contrario para
+  desarrollo. Un test de build (`ConfigurationContractTest`) falla si una
+  variable obligatoria no está documentada o si alguna credencial queda
+  escrita en `application.properties`.
+- **Condiciones de carrera sobre saldos:** `@Version` (bloqueo optimista) en
+  `Savings`, `TokenWallet`, `SavingsGoal` e `InvestmentPortfolio`. Dos
+  operaciones simultáneas sobre el mismo saldo no pueden pisarse: la segunda
+  en escribir recibe `409` en vez de sobrescribir silenciosamente. Está
+  verificado con hilos reales en `WalletConcurrencyTest`.
+- **Reintentos que duplicarían dinero o fichas:** idempotencia vía
+  `clientOrderId` único en órdenes y `(motivo, referencia)` único en
+  movimientos de fichas, para que un reintento de red no ejecute la operación
+  dos veces.
+- **Manipulación de puntuación en minijuegos:** dado que el juego corre en el
+  cliente, no se puede confiar en la puntuación recibida; el daño se acota
+  con `maxTokenReward` (editable solo por ADMIN) y con el cobro por
+  adelantado de cada partida, de modo que la peor manipulación posible
+  equivale a jugar perfecto, no a generar fichas de la nada.
+- **Auditoría:** cada movimiento de fichas queda registrado en
+  `token_transactions` con el saldo resultante, de modo que una desviación se
+  detecta revisando una sola fila.
 
 ---
 
-## Seguridad
+## Eventos y Asincronía
 
-- **JWT** con `sub` (email), `uid` (id de usuario), `roles`, `iat` y `exp`. El
-  secreto viene del entorno y se valida al arrancar.
-- **Refresh tokens** guardados como hash SHA-256, nunca en claro. Rotan en cada
-  uso, y si se detecta la reutilización de uno ya revocado se revoca la familia
-  completa del usuario: es la defensa contra el replay de un token robado.
-- **BCrypt** para las contraseñas, que deben tener 8 caracteres como mínimo con
-  minúscula, mayúscula, dígito y símbolo.
-- **Roles** con `@PreAuthorize` sobre las escrituras de catálogo y el listado de
-  usuarios.
-- **Ownership** resuelto en la consulta: `findByIdAndUserId(...)`, no
-  `findById(...)` más una comprobación después. El filtro está en el `WHERE`, así
-  que no se puede olvidar.
-- **CORS** por variable de entorno, sin comodín.
-- **Sin estado**: no hay sesión de servidor.
+El backend usa eventos de dominio para desacoplar la escritura financiera de
+sus efectos secundarios. Cumplir una meta de ahorro y ejecutar una orden
+publican eventos que son consumidos por listeners de tipo
+`@TransactionalEventListener(phase = AFTER_COMMIT)`: el efecto (por ejemplo,
+el correo de confirmación) solo se dispara si la transacción realmente hizo
+commit.
 
----
+Esto es importante porque un `@EventListener` normal corre dentro de la misma
+transacción que generó el evento: si esa transacción termina en rollback, un
+listener síncrono ya habría enviado un correo felicitando al usuario por una
+meta que la base de datos nunca llegó a registrar. Un correo, a diferencia de
+una fila de base de datos, no se puede deshacer.
 
-## Base de datos
-
-19 tablas. Las relaciones 1:1 (`savings`, `token_wallets`,
-`investment_portfolios`) tienen `UNIQUE(user_id)`, así que la unicidad la
-garantiza el esquema y no el código. Las claves foráneas están nombradas, y hay
-índices en las columnas por las que se filtra de verdad.
-
-Desactivar un usuario es un borrado lógico (`users.status`): su historial
-financiero no se destruye.
+El envío de correo en sí se ejecuta con `@Async` sobre un
+`ThreadPoolTaskExecutor` configurado explícitamente, de modo que una demora o
+falla del proveedor de correo no bloquea ni hace más lenta la respuesta al
+usuario que disparó la operación financiera.
 
 ---
 
-## Desarrollo
+## GitHub & Management
 
-```bash
-./mvnw test                          # toda la suite
-./mvnw test -Dtest=PortfolioPnlTest  # una clase
-./mvnw package                       # el jar
-```
+El repositorio usa un workflow de GitHub Actions que se dispara con `on:
+pull_request` (contra la rama por defecto) y `on: push` a `main`. El flujo,
+en ambos casos:
 
-El CI corre compilación y tests en cada pull request y en cada push a `main`.
+1. Hace *checkout* del código.
+2. Configura JDK 21 y cachea las dependencias de Maven.
+3. Corre `./mvnw test`, la suite completa de pruebas.
+4. Falla el workflow si algún test falla o si el build no compila.
 
-Los tests de flujos financieros de escritura **no** llevan `@Transactional` de
-clase, y es deliberado: con esa anotación el método de test es el dueño de la
-transacción externa y los servicios se le unen como participantes, de modo que el
-commit que la aplicación hace en producción nunca ocurre en el test. Eso ya
-escondió un fallo real. La limpieza se hace en `@AfterEach` con
-`support/DatabaseCleaner`.
+Que la suite corra sobre **H2 en modo PostgreSQL** es lo que permite que este
+paso no dependa de Docker ni de credenciales de base de datos en el CI: no
+hay contenedor de PostgreSQL que levantar ni secretos que inyectar solo para
+probar.
+
+Este workflow es, junto con las **dos aprobaciones obligatorias** definidas en
+el *ruleset* de la rama `main`, el segundo requisito que debe cumplirse antes
+de poder mergear un pull request: código revisado y CI en verde.
+
+El _CI_ corre compilación y la
+suite de tests en cada pull request y en cada push a `main`, y los tests no
+dependen de Docker ni de una base de datos externa porque corren contra H2 en
+modo PostgreSQL.
+
+---
+
+## Conclusión
+
+### Logros del Proyecto
+
+El _backend_ maneja el flujo pensado originalmente: registro de
+finanzas reales, metas de ahorro con compromiso de saldo, una economía de
+fichas que no se puede falsear desde la _API_, y un simulador de inversión con
+órdenes, posiciones y cotizaciones. La seguridad (_JWT_, roles, _ownership_,
+control de concurrencia) y la trazabilidad (libro de movimientos de fichas,
+migraciones versionadas) se priorizó y no fue un añadido posterior.
+
+### Aprendizajes Clave
+
+
+- El **bloqueo optimista** (`@Version`) resultó ser la única defensa real
+  contra condiciones de carrera sobre saldos y fichas; las validaciones de
+  Bean Validation, que en la propuesta parecían suficientes, no protegen
+  contra dos peticiones concurrentes leyendo el mismo estado.
+- Resolver el **rechazo de una orden antes de escribir**, en vez de lanzar y
+  atrapar una excepción, evita marcar la transacción como rollback-only y
+  fue clave para que "fichas insuficientes" se pudiera tratar como un
+  resultado de negocio (`REJECTED`) y no como un error del sistema.
+- Los **eventos post-commit** (`@TransactionalEventListener(AFTER_COMMIT)`)
+  terminaron siendo la forma correcta de resolver la asincronía que la
+  propuesta original pedía para notificaciones y procesamiento de
+  recompensas, evitando que un correo o un cálculo se disparen sobre una
+  transacción que después hace rollback.
+- La limitada experiencia previa del equipo con APIs REST completas
+  se compensó investigando
+  sobre la marcha Java, Lombok y ModelMapper, tal como se había planeado.
+
+### Trabajo Futuro
+
+- Verificar la partida de los minijuegos del lado del servidor, en vez de
+  confiar en la puntuación enviada por el cliente y acotarla solo con un
+  tope máximo.
+- Probar las migraciones Flyway dentro del build con Testcontainers, para que
+  una migración mal escrita falle en CI y no solo al desplegar.
+- Evaluar mover el deployment a AWS (ECS/EC2 + RDS) si el proyecto crece más
+  allá de una plataforma de despliegue instantáneo.
+
+---
+
+## Apéndices
+
+### Licencia
+
+Proyecto desarrollado con fines académicos para el curso CS2031 Desarrollo
+Basado en Plataformas (UTEC, 2026-2). No cuenta con una licencia de código
+abierto formal; su uso y distribución fuera del curso requiere autorización
+de los integrantes listados en la portada.
+
+### Referencias
+
++ Apache Software Foundation. (n.d.). Apache Maven documentation. https://maven.apache.org/guides/index.html
++ Broadcom Inc. (n.d.). Create an OCI image. Spring Boot Maven Plugin Reference Guide. https://docs.spring.io/spring-boot/4.1.1/maven-plugin/build-image.html
+
++ Broadcom Inc. (n.d.). Docker Compose support. Spring Boot Reference Documentation. https://docs.spring.io/spring-boot/4.1.1/reference/features/dev-services.html#features.dev-services.docker-compose
+
++ Broadcom Inc. (n.d.). OAuth2 client. Spring Boot Reference Documentation. https://docs.spring.io/spring-boot/4.1.1/reference/web/spring-security.html#web.security.oauth2.client
+
++ Broadcom Inc. (n.d.). Spring Boot DevTools. Spring Boot Reference Documentation. https://docs.spring.io/spring-boot/4.1.1/reference/using/devtools.html
+
++ Broadcom Inc. (n.d.). Spring Boot Maven Plugin reference guide. https://docs.spring.io/spring-boot/4.1.1/maven-plugin
+
++ Broadcom Inc. (n.d.). Spring Data JPA. Spring Boot Reference Documentation. https://docs.spring.io/spring-boot/4.1.1/reference/data/sql.html#data.sql.jpa-and-spring-data
+
++ Broadcom Inc. (n.d.). Spring Security. Spring Boot Reference Documentation. https://docs.spring.io/spring-boot/4.1.1/reference/web/spring-security.html
+
++ Broadcom Inc. (n.d.). Spring Web. Spring Boot Reference Documentation. https://docs.spring.io/spring-boot/4.1.1/reference/web/servlet.html
+
++ Conventional Commits. (n.d.). Conventional Commits 1.0.0. https://www.conventionalcommits.org/en/v1.0.0/#summary
+
++ GitHub. (n.d.). Creating a branch for an issue. GitHub Docs. https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-a-branch-for-an-issue
+
++ GitHub. (n.d.). Creating a pull request. GitHub Docs. https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/creating-a-pull-request
+
++ GitHub. (n.d.). Linking a pull request to an issue. GitHub Docs. https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue
+
++ GitHub. (n.d.). Request a pull request review. GitHub Docs. https://docs.github.com/en/pull-requests/how-tos/create-pull-requests/requesting-a-pull-request-review
+
++ GitHub. (n.d.). Reviewing proposed changes in a pull request. GitHub Docs. https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request
+
++ Spring. (n.d.). Accessing data with JPA. https://spring.io/guides/gs/accessing-data-jpa/
+
++ Spring. (n.d.). Authenticating a user with LDAP. https://spring.io/guides/gs/authenticating-ldap/
+
++ Spring. (n.d.). Building a RESTful web service. https://spring.io/guides/gs/rest-service/
+
++ Spring. (n.d.). Building REST services with Spring. https://spring.io/guides/tutorials/rest/
+
++ Spring. (n.d.). Securing a web application. https://spring.io/guides/gs/securing-web/
+
++ Spring. (n.d.). Serving web content with Spring MVC. https://spring.io/guides/gs/serving-web-content/
+
++ Spring. (n.d.). Spring Boot and OAuth2. https://spring.io/guides/tutorials/spring-boot-oauth2/

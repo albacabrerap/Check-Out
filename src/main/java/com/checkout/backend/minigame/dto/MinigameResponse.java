@@ -10,25 +10,15 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class MinigameResponse {
-
     private Long id;
-
     private String title;
-
     private MinigameType type;
-
     private String topic;
-
     private BigDecimal tokenCost;
-
     private BigDecimal maxTokenReward;
-
     private MinigameStatus status;
-
 }

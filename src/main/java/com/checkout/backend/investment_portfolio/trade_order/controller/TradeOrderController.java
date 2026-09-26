@@ -19,17 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-/**
- * Ordenes de compra y venta del usuario autenticado.
- *
- * Es la unica escritura del modulo de inversion: la cartera y las posiciones se
- * derivan de lo que pasa aqui. Concentrar la escritura en un solo sitio es lo
- * que permite que el resto sea de solo lectura.
- *
- * El cliente manda un clientOrderId y la ruta es idempotente: reintentar la
- * misma orden devuelve la que ya se ejecuto en vez de comprar otra vez. Sin eso,
- * un toque doble o una red inestable cuestan dinero al usuario.
- */
+// Buy and sell orders of the authenticated user.
 @RestController
 @RequestMapping("/orders")
 public class TradeOrderController {
@@ -43,29 +33,20 @@ public class TradeOrderController {
         this.currentUser = currentUser;
     }
 
-    /** GET /api/v1/orders */
+    // GET /api/v1/orders
     @GetMapping
     public ResponseEntity<PageResponse<TradeOrderResponse>> list(
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(orderService.list(currentUser.requireCurrentUser(), pageable));
     }
 
-    /** GET /api/v1/orders/{id} */
+    // GET /api/v1/orders/{id}
     @GetMapping("/{id}")
     public ResponseEntity<TradeOrderResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.get(currentUser.requireCurrentUser(), id));
     }
 
-    /**
-     * POST /api/v1/orders
-     *
-     * Coloca la orden y la resuelve al instante contra la cotizacion vigente.
-     *
-     * Responde 201 tambien cuando la orden sale rechazada: el recurso se creo y
-     * queda en el historial con su motivo. Que no se ejecutara es el resultado de
-     * la operacion, no un fallo de la peticion, y el cliente lo lee en el campo
-     * status.
-     */
+    // POST /api/v1/orders
     @PostMapping
     public ResponseEntity<TradeOrderResponse> place(@Valid @RequestBody TradeOrderRequest request) {
         TradeOrderResponse placed = orderService.place(currentUser.requireCurrentUser(), request);
@@ -78,26 +59,8 @@ public class TradeOrderController {
         return ResponseEntity.created(location).body(placed);
     }
 
-    /**
-     * DELETE /api/v1/orders/{id}
-     *
-     * Cancela una orden pendiente. Devuelve el recurso y no 204 porque el cambio
-     * de estado es justo lo que el cliente necesita ver.
-     *
-     * Una orden ya ejecutada no se cancela: deshacerla significaria revertir
-     * fichas y posiciones a precios que ya cambiaron.
-     */
-    /**
-     * POST /api/v1/orders/{id}/cancel
-     *
-     * Es POST sobre un subrecurso y no DELETE sobre la orden, porque cancelar no
-     * borra nada: cambia el estado a CANCELLED y la orden sigue en el historial.
-     * Un DELETE que no elimina y que ademas devuelve cuerpo obliga a cualquier
-     * cliente a aprender una excepcion a la regla.
-     */
     @PostMapping("/{id}/cancel")
     public ResponseEntity<TradeOrderResponse> cancel(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.cancel(currentUser.requireCurrentUser(), id));
     }
-
 }

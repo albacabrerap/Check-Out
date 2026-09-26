@@ -10,20 +10,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Cartera simulada del usuario autenticado. Solo lectura, como el monedero.
- *
- * Una posicion no se crea ni se edita por API: aparece porque se ejecuto una
- * orden de compra y desaparece cuando se vende entera. Permitir editarla seria
- * poder darse activos sin pagarlos, que es la version de inversion del mismo
- * agujero que evita el monedero de solo lectura.
- *
- * Un usuario tiene una sola cartera, asi que la ruta no lleva id.
- */
+// Sim user: lecture, balance -> user has one balance total
 @RestController
 @RequestMapping("/portfolio")
 public class PortfolioController {
-
     private final PortfolioService portfolioService;
     private final CurrentUserProvider currentUser;
 
@@ -33,25 +23,15 @@ public class PortfolioController {
         this.currentUser = currentUser;
     }
 
-    /**
-     * GET /api/v1/portfolio
-     *
-     * Trae las posiciones ya valoradas con la cotizacion del momento, mas el
-     * resultado no realizado: lo que valen hoy frente a lo que costo abrirlas.
-     */
+    // GET /api/v1/portfolio
     @GetMapping
     public ResponseEntity<PortfolioResponse> getPortfolio() {
         return ResponseEntity.ok(portfolioService.getSummary(currentUser.requireCurrentUser()));
     }
 
-    /**
-     * GET /api/v1/portfolio/positions
-     *
-     * Las mismas posiciones sin el resumen, para la pantalla que solo lista.
-     */
+    // GET /api/v1/portfolio/positions
     @GetMapping("/positions")
     public ResponseEntity<List<PositionResponse>> listPositions() {
         return ResponseEntity.ok(portfolioService.listPositions(currentUser.requireCurrentUser()));
     }
-
 }

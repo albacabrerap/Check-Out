@@ -19,18 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-/**
- * Catalogo de minijuegos.
- *
- * Es contenido comun, no de un usuario, asi que el modelo de permisos cambia
- * respecto al resto de la API: leer lo puede hacer cualquier autenticado,
- * escribir es de ADMIN. `tokenCost` y `maxTokenReward` son los parametros de la
- * economia de fichas, y quien pueda editarlos puede crearse un juego que cueste
- * cero y pague mil.
- *
- * El listado publico solo devuelve los PUBLISHED. Los borradores y los
- * archivados se consultan en /minigames/all, que es de administracion.
- */
+
 @RestController
 @RequestMapping("/minigames")
 public class MinigameController {
@@ -41,14 +30,6 @@ public class MinigameController {
         this.minigameService = minigameService;
     }
 
-    /**
-     * GET /api/v1/minigames — el catalogo jugable
-     *
-     * Con ?includeUnpublished=true incluye borradores y archivados, y eso exige
-     * ADMIN. El permiso lo comprueba el servicio con su propio @PreAuthorize, que
-     * protege la operacion aunque se la llame desde otro sitio; aqui no se puede
-     * anotar el metodo porque lo llaman los dos tipos de usuario.
-     */
     @GetMapping
     public ResponseEntity<List<MinigameResponse>> list(
             @RequestParam(defaultValue = "false") boolean includeUnpublished) {
@@ -59,7 +40,7 @@ public class MinigameController {
         return ResponseEntity.ok(minigameService.listAll());
     }
 
-    /** GET /api/v1/minigames/{id} */
+    /* GET /api/v1/minigames/{id} */
     @GetMapping("/{id}")
     public ResponseEntity<MinigameResponse> get(@PathVariable Long id) {
         return ResponseEntity.ok(minigameService.getPublished(id));
@@ -79,7 +60,7 @@ public class MinigameController {
         return ResponseEntity.created(location).body(created);
     }
 
-    /** PUT /api/v1/minigames/{id} */
+    /* PUT /api/v1/minigames/{id} */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<MinigameResponse> update(@PathVariable Long id,
@@ -87,17 +68,11 @@ public class MinigameController {
         return ResponseEntity.ok(minigameService.update(id, request));
     }
 
-    /**
-     * DELETE /api/v1/minigames/{id}
-     *
-     * Archiva en vez de borrar: las partidas jugadas referencian esta fila y
-     * borrarla destruiria el historial de los usuarios.
-     */
+    /*DELETE /api/v1/minigames/{id}*/
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> archive(@PathVariable Long id) {
         minigameService.archive(id);
         return ResponseEntity.noContent().build();
     }
-
 }

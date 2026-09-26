@@ -9,10 +9,6 @@ import lombok.*;
 
 import java.math.BigDecimal;
 
-/**
- * Catalogue of educational minigames. Administrators create these; users only
- * play them, which is why there is no owning user.
- */
 @Entity
 @Table(name = "minigames")
 @Getter
@@ -51,9 +47,7 @@ public class Minigame {
     private BigDecimal tokenCost = BigDecimal.ZERO;
 
     /** Upper bound of the reward; the actual amount depends on the score. */
-    @NotNull
-    @DecimalMin("0")
-    @Column(name = "max_token_reward", nullable = false, precision = 19, scale = 2)
+    @NotNull @DecimalMin("0") @Column(name = "max_token_reward", nullable = false, precision = 19, scale = 2)
     @Builder.Default
     private BigDecimal maxTokenReward = BigDecimal.ZERO;
 
@@ -63,7 +57,6 @@ public class Minigame {
     @Builder.Default
     private MinigameStatus status = MinigameStatus.DRAFT;
 
-    /** Identity is the primary key; two unsaved instances are only equal to themselves. */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -71,7 +64,6 @@ public class Minigame {
         return id != null && id.equals(other.id);
     }
 
-    /** Constant on purpose: the hash must not change when the id is assigned on persist. */
     @Override
     public int hashCode() {
         return Minigame.class.hashCode();

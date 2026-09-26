@@ -10,30 +10,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
 @Builder
 public class PortfolioResponse {
-
     private Long id;
-
     private BigDecimal investedTokens;
-
     private BigDecimal simulatedValue;
-
     private BigDecimal unrealizedPnl;
-
-    /**
-     * Resultado ya materializado por las ventas. Viene de la entidad, asi que el
-     * mapper lo rellena solo; unrealizedPnl, que no existe en la entidad, lo
-     * calcula el servicio.
-     */
     private BigDecimal realizedPnl;
-
     private List<PositionResponse> positions;
-
     private LocalDateTime updatedAt;
-
 }
