@@ -1,4 +1,4 @@
-# Check-Out / Cash-Out — Backend de Educación Financiera con Inversión Simulada
+# Check-Out / Cash-Out
 
 **Curso:** CS2031 Desarrollo Basado en Plataformas, 2026-2, UTEC
 
@@ -69,7 +69,7 @@ Esta solución busca brindarles una herramienta para administrar sus gastos, mon
 
 ### Funcionalidades Implementadas
 
-- **Autenticación y usuarios:** registro, login, refresh y logout con JWT;
+- **Autenticación y usuarios:** registro, _login_, _refresh_ y _logout_ con _JWT_;
   gestión del propio perfil (`/users/me`), cambio de contraseña con revocación
   de sesiones, y borrado lógico de cuenta.
 - **Ahorro en soles:** registro de ingresos y gastos con filtros por fecha y
@@ -95,17 +95,17 @@ Esta solución busca brindarles una herramienta para administrar sus gastos, mon
 
 | Pieza | Versión | Por qué |
 |---|---|---|
-| Java | 21 | LTS; se usan `record`, pattern matching y text blocks |
-| Spring Boot | 4.1.1 | versión estable, sin artefactos pre-release |
-| Spring Security | 7 | `SecurityFilterChain` y `@EnableMethodSecurity` |
-| jjwt | 0.13 | firma y verificación de los JWT |
-| PostgreSQL | 16 | base de datos de desarrollo y producción |
-| H2 | en memoria, modo PostgreSQL | base de los tests, sin necesidad de Docker |
-| Hibernate / JPA | del BOM de Boot | persistencia |
-| ModelMapper | 3.2 | mapeo Entity ↔ DTO en estrategia STRICT |
-| SpringDoc OpenAPI | 2.x | documentación navegable de la API (Swagger) |
-| Maven (wrapper) | incluido | build sin instalar Maven localmente |
-| Docker / Docker Compose | — | orquesta PostgreSQL y la aplicación |
+| _Java_ | 21 | LTS; se usan `record`, pattern matching y text blocks |
+| _Spring Boot_ | 4.1.1 | versión estable, sin artefactos pre-release |
+| _Spring Security_ | 7 | `SecurityFilterChain` y `@EnableMethodSecurity` |
+| _jjwt_ | 0.13 | firma y verificación de los _JWT_ |
+| _PostgreSQL_ | 16 | base de datos de desarrollo y producción |
+| H2 | en memoria, modo _PostgreSQL_ | base de los tests, sin necesidad de Docker |
+| _Hibernate_ / _JPA_ | del _BOM_ de _Boot_ | persistencia |
+| _ModelMapper_ | 3.2 | mapeo _Entity_ $\iff$ _DTO_ en estrategia `STRICT` |
+| _SpringDoc OpenAPI_ | 2.x | documentación navegable de la _API_ (_Swagger_) |
+| _Maven_ (_wrapper_) | incluido | build sin instalar _Maven_ localmente |
+| _Docker_ / _Docker Compose_ | — | orquesta _PostgreSQL_ y la aplicación |
 
 La API completa cuelga de `/api/v1` (versionado centralizado en
 `web/ApiVersioningConfig`) y está documentada también en una colección de
@@ -119,7 +119,7 @@ Postman en la raíz del repositorio.
 
 ### Descripción de Entidades
 
-El esquema tiene 17 tablas organizadas por dominio de negocio:
+El esquema tiene 19 tablas organizadas por dominio de negocio:
 
 - **User:** cuenta del usuario, credenciales, rol y estado (activo/inactivo
   vía borrado lógico).
@@ -220,7 +220,7 @@ Todos los endpoints devuelven el mismo formato de error, resuelto por un
 `fieldErrors` solo aparece cuando la causa es una validación por campo. Los
 códigos de estado usados son:
 
-| Código | Cuándo |
+| Código | Uso |
 |---|---|
 | `400` | validación, o una regla de negocio que depende del estado guardado |
 | `401` | sin token, token inválido o expirado |
@@ -346,11 +346,6 @@ Este workflow es, junto con las **dos aprobaciones obligatorias** definidas en
 el *ruleset* de la rama `main`, el segundo requisito que debe cumplirse antes
 de poder mergear un pull request: código revisado y CI en verde.
 
-El _CI_ corre compilación y la
-suite de tests en cada pull request y en cada push a `main`, y los tests no
-dependen de Docker ni de una base de datos externa porque corren contra H2 en
-modo PostgreSQL.
-
 ---
 
 ## Conclusión
@@ -366,7 +361,6 @@ migraciones versionadas) se priorizó y no fue un añadido posterior.
 
 ### Aprendizajes Clave
 
-
 - El **bloqueo optimista** (`@Version`) resultó ser la única defensa real
   contra condiciones de carrera sobre saldos y fichas; las validaciones de
   Bean Validation, que en la propuesta parecían suficientes, no protegen
@@ -381,8 +375,8 @@ migraciones versionadas) se priorizó y no fue un añadido posterior.
   recompensas, evitando que un correo o un cálculo se disparen sobre una
   transacción que después hace rollback.
 - La limitada experiencia previa del equipo con APIs REST completas
-   se compensó investigando
-  sobre la marcha Java, Lombok y ModelMapper, tal como se había planeado.
+  se compensó investigando sobre la marcha Java, Lombok y ModelMapper, tal
+  como se había planeado.
 
 ### Trabajo Futuro
 
