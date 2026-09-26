@@ -220,7 +220,7 @@ Todos los endpoints devuelven el mismo formato de error, resuelto por un
 `fieldErrors` solo aparece cuando la causa es una validación por campo. Los
 códigos de estado usados son:
 
-| Código | Cuándo |
+| Código | Uso |
 |---|---|
 | `400` | validación, o una regla de negocio que depende del estado guardado |
 | `401` | sin token, token inválido o expirado |
