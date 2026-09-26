@@ -185,15 +185,13 @@ en las columnas usadas para filtrar (fechas, categorías, usuario).
 > planteaba `User`–`InvestmentPortfolio` y `User`–`Minigame` como relaciones
 > N:N directas. En la implementación final, `InvestmentPortfolio` pasó a ser
 > 1:1 con `User` (cada usuario tiene una única cartera, y dentro de ella
-> puede tener múltiples `Position` sobre distintos `Asset`, que es donde vive
-> la multiplicidad); y la relación N:N con `Minigame` se resolvió con la
-> tabla intermedia explícita `MinigameSession`, que además guarda el puntaje
-> y la fecha de cada partida. El resto de entidades y cardinalidades de la
+> puede tener múltiples `Position` sobre distintos `Asset`); y la relación N:N con `Minigame` se resolvió con la
+> tabla intermedia explícita `MinigameSession`. El resto de entidades y cardinalidades de la
 > propuesta se mantuvo, y se añadieron nuevas (`TokenTransaction`,
 > `RefreshToken`, `Contribution`, `AssetQuote`, `AssetPriceHistory`,
-> `Position`, `TradeOrder`) que la propuesta no anticipaba.
+> `Position`, `TradeOrder`) que la propuesta inicial no incluía.
 
-El esquema real vive en migraciones Flyway
+El esquema real se encuentra en migraciones Flyway
 (`src/main/resources/db/migration`), y Hibernate solo valida contra ellas al
 arrancar: si una entidad y una migración no coinciden, la aplicación no
 levanta. Esto evita que el modelo de datos de código y el de base de datos
