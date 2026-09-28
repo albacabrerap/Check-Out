@@ -111,6 +111,8 @@ La API completa cuelga de `/api/v1` (versionado centralizado en
 `web/ApiVersioningConfig`) y está documentada también en una colección de
 Postman en la raíz del repositorio.
 
+**API desplegada:** <http://3.212.180.41/api/v1>.
+
 ---
 
 ## Modelo de Entidades
@@ -306,18 +308,12 @@ formato anterior.
 
 ## Eventos y Asincronía
 
-El backend usa eventos de dominio para desacoplar la escritura financiera de
+El _backend_ usa eventos de dominio para desacoplar la escritura financiera de
 sus efectos secundarios. Cumplir una meta de ahorro y ejecutar una orden
 publican eventos que son consumidos por listeners de tipo
 `@TransactionalEventListener(phase = AFTER_COMMIT)`: el efecto (por ejemplo,
 el correo de confirmación) solo se dispara si la transacción realmente hizo
-commit.
-
-Esto es importante porque un `@EventListener` normal corre dentro de la misma
-transacción que generó el evento: si esa transacción termina en rollback, un
-listener síncrono ya habría enviado un correo felicitando al usuario por una
-meta que la base de datos nunca llegó a registrar. Un correo, a diferencia de
-una fila de base de datos, no se puede deshacer.
+_commit_.
 
 El envío de correo en sí se ejecuta con `@Async` sobre un
 `ThreadPoolTaskExecutor` configurado explícitamente, de modo que una demora o
@@ -333,18 +329,12 @@ pull_request` (contra la rama por defecto) y `on: push` a `main`. El flujo,
 en ambos casos:
 
 1. Hace *checkout* del código.
-2. Configura JDK 21 y cachea las dependencias de Maven.
+2. Configura _JDK 21_ y cachea las dependencias de _Maven_.
 3. Corre `./mvnw test`, la suite completa de pruebas.
-4. Falla el workflow si algún test falla o si el build no compila.
+4. Falla el _workflow_ si algún test falla o si el _build_ no compila.
 
-Que la suite corra sobre **H2 en modo PostgreSQL** es lo que permite que este
-paso no dependa de Docker ni de credenciales de base de datos en el CI: no
-hay contenedor de PostgreSQL que levantar ni secretos que inyectar solo para
-probar.
-
-Este workflow es, junto con las **dos aprobaciones obligatorias** definidas en
-el *ruleset* de la rama `main`, el segundo requisito que debe cumplirse antes
-de poder mergear un pull request: código revisado y CI en verde.
+La _suite_ corre sobre _H2_ en modo _PostgreSQL_ por lo que este
+paso no dependa de _Docker_ ni de credenciales de base de datos en el _CI_.
 
 ---
 
@@ -361,32 +351,21 @@ migraciones versionadas) se priorizó y no fue un añadido posterior.
 
 ### Aprendizajes Clave
 
-- El **bloqueo optimista** (`@Version`) resultó ser la única defensa real
-  contra condiciones de carrera sobre saldos y fichas; las validaciones de
-  Bean Validation, que en la propuesta parecían suficientes, no protegen
-  contra dos peticiones concurrentes leyendo el mismo estado.
-- Resolver el **rechazo de una orden antes de escribir**, en vez de lanzar y
-  atrapar una excepción, evita marcar la transacción como rollback-only y
-  fue clave para que "fichas insuficientes" se pudiera tratar como un
+- El bloqueo optimista (`@Version`) resultó ser la única defensa real
+  contra condiciones de carrera sobre saldos y fichas ya que las validaciones de
+  _Bean Validation_ no protegen dos peticiones concurrentes leyendo el mismo estado.
+- Resolver el rechazo de una orden antes de escribir, en vez de lanzar y
+  atrapar una excepción, evita marcar la transacción como `rollback-only` y
+  fue clave para que el caso de "fichas insuficientes" se pudiese tratar como un
   resultado de negocio (`REJECTED`) y no como un error del sistema.
 - Los **eventos post-commit** (`@TransactionalEventListener(AFTER_COMMIT)`)
   terminaron siendo la forma correcta de resolver la asincronía que la
   propuesta original pedía para notificaciones y procesamiento de
   recompensas, evitando que un correo o un cálculo se disparen sobre una
   transacción que después hace rollback.
-- La limitada experiencia previa del equipo con APIs REST completas
-  se compensó investigando sobre la marcha Java, Lombok y ModelMapper, tal
-  como se había planeado.
-
-### Trabajo Futuro
-
-- Verificar la partida de los minijuegos del lado del servidor, en vez de
-  confiar en la puntuación enviada por el cliente y acotarla solo con un
-  tope máximo.
-- Probar las migraciones Flyway dentro del build con Testcontainers, para que
-  una migración mal escrita falle en CI y no solo al desplegar.
-- Evaluar mover el deployment a AWS (ECS/EC2 + RDS) si el proyecto crece más
-  allá de una plataforma de despliegue instantáneo.
+- En compensación de nuestra escasa experiencia
+  se tuvo que investigar sobre la marcha en respecto a _Java_, _Lombok_ y `ModelMapper`,
+  lo cual se planteó en la primera entrega.
 
 ---
 
