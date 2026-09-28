@@ -53,6 +53,8 @@ public class SecurityConfig {
             // cerrar sesion justo cuando mas hace falta, con la sesion ya
             // caducada, y dejaria el refresh token vivo hasta su expiracion.
             "/api/v1/auth/logout",
+            "/",
+            "/api/v1/health",
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"
